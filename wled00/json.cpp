@@ -1104,6 +1104,83 @@ class LockedJsonResponse: public AsyncJsonResponse {
   virtual ~LockedJsonResponse() { if (_holding_lock) releaseJSONBufferLock(); };
 };
 
+void serveCANJson(AsyncWebServerRequest* request)
+{
+  if (request->hasArg(F("ping"))) {
+    request->send(200, FPSTR(CONTENT_TYPE_PLAIN), F("can_ok"));
+    return;
+  }
+
+  StaticJsonDocument<1024> doc;
+  JsonObject root = doc.to<JsonObject>();
+
+  root[F("uptime")] = millis();
+  root[F("nowMs")] = millis();
+
+  Usermod* canMod = UsermodManager::lookup(USERMOD_ID_CAN_TWAI);
+  const bool canFound = (canMod != nullptr);
+  root[F("canModFound")] = canFound;
+  root[F("usermodCount")] = UsermodManager::getModCount();
+  if (canFound) {
+    if (!request->hasArg(F("full"))) {
+      root[F("canLite")] = true;
+    }
+    canMod->addToJsonState(root);
+    root.remove(F("canLite"));
+  }
+
+  JsonVariant canVar = root[F("can")];
+  JsonObject can = canVar.isNull() ? root.createNestedObject(F("can")) : canVar.as<JsonObject>();
+  if (!canFound) {
+    can[F("enabled")] = false;
+    can[F("started")] = false;
+    can[F("bitrate")] = 0;
+    can[F("rxPin")] = -1;
+    can[F("txPin")] = -1;
+    can[F("listenOnly")] = true;
+    can[F("rxCount")] = 0;
+    can[F("txCount")] = 0;
+    can[F("errors")] = 0;
+    can[F("overruns")] = 0;
+    can[F("lastFrameMs")] = 0;
+    can[F("msSinceFrame")] = 0;
+    can[F("uiEffect")] = 0;
+    can[F("uiPollRate")] = 1;
+    can[F("error")] = F("usermod_not_found");
+  }
+  if (can.containsKey(F("recentFrames"))) {
+    JsonArray srcFrames = can[F("recentFrames")].as<JsonArray>();
+    JsonArray dstFrames = root.createNestedArray(F("frames"));
+
+    for (JsonVariant v : srcFrames) {
+      JsonObject srcFrame = v.as<JsonObject>();
+      JsonObject dstFrame = dstFrames.createNestedObject();
+
+      dstFrame[F("id")] = srcFrame[F("id")];
+      dstFrame[F("ext")] = srcFrame[F("ext")];
+      dstFrame[F("rtr")] = srcFrame[F("rtr")];
+      dstFrame[F("dlc")] = srcFrame[F("dlc")];
+      dstFrame[F("t_ms")] = srcFrame[F("time")];
+
+      if (srcFrame.containsKey(F("data"))) {
+        JsonArray srcData = srcFrame[F("data")].as<JsonArray>();
+        JsonArray dstData = dstFrame.createNestedArray(F("data"));
+        for (JsonVariant d : srcData) {
+          dstData.add(d.as<uint8_t>());
+        }
+      }
+    }
+
+    can.remove(F("recentFrames"));
+  } else {
+    root.createNestedArray(F("frames"));
+  }
+
+  AsyncResponseStream *response = request->beginResponseStream(FPSTR(CONTENT_TYPE_JSON));
+  serializeJson(doc, *response);
+  request->send(response);
+}
+
 void serveJson(AsyncWebServerRequest* request)
 {
   enum class json_target {
@@ -1127,7 +1204,11 @@ void serveJson(AsyncWebServerRequest* request)
     return;
   }
   #endif
-  else if (url.indexOf("pal") > 0) {
+  else if (url.indexOf(F("can"))  > 0) {
+    serveCANJson(request);
+    return;
+  }
+  else if (url.indexOf(F("pal")) > 0) {
     request->send_P(200, FPSTR(CONTENT_TYPE_JSON), JSON_palette_names);
     return;
   }

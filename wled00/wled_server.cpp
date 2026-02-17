@@ -351,6 +351,10 @@ void initServer()
     handleStaticContent(request, "", 200, FPSTR(CONTENT_TYPE_HTML), PAGE_liveview, PAGE_liveview_length);
   });
 
+  server.on(F("/can"), HTTP_GET, [](AsyncWebServerRequest *request) {
+    handleStaticContent(request, "", 200, FPSTR(CONTENT_TYPE_HTML), PAGE_can, PAGE_can_length);
+  });
+
   server.on(_common_js, HTTP_GET, [](AsyncWebServerRequest *request) {
     handleStaticContent(request, FPSTR(_common_js), 200, FPSTR(CONTENT_TYPE_JAVASCRIPT), JS_common, JS_common_length);
   });
@@ -455,6 +459,10 @@ void initServer()
     }
     request->send(200, CONTENT_TYPE_JSON, F("{\"success\":true}"));
   }, JSON_BUFFER_SIZE);
+  server.on(F("/json/can"), HTTP_GET, [](AsyncWebServerRequest *request){
+    serveCANJson(request);
+  });
+
   server.addHandler(handler);
 
   server.on(F("/version"), HTTP_GET, [](AsyncWebServerRequest *request){

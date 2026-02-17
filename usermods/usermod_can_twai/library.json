@@ -1,0 +1,21 @@
+{
+  "name": "usermod_can_twai",
+  "version": "1.0.0",
+  "description": "CAN/TWAI bus support for WLED using ESP32 TWAI controller and SN65HVD230 transceiver",
+  "keywords": "can, twai, automotive, bus, sn65hvd230",
+  "authors": {
+    "name": "WLED Community"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aircoookie/WLED.git"
+  },
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "build": {
+    "flags": [
+      "-DUSERMOD_CAN_TWAI"
+    ],
+    "libArchive": false
+  }
+}

@@ -1,0 +1,1837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+	<title>WLED CAN Monitor</title>
+	<script>
+		// load common.js with retry on error
+		(function loadFiles() {
+			const l = document.createElement('script');
+			l.src = 'common.js';
+			l.onload = () => loadResources(['style.css'], initCAN);
+			l.onerror = () => setTimeout(loadFiles, 100);
+			document.head.appendChild(l);
+		})();
+	</script>
+	<style>
+		@import url("style.css");
+		
+		/* === DESIGN SYSTEM === */
+		:root {
+			--can-bg: #0F1115;
+			--can-accent: #FF8C42;
+			--can-success: #19C37D;
+			--can-danger: #FF4D4F;
+			--can-warning: #FFB84D;
+			--can-cyan: #3ABEFF;
+			--can-purple: #A56EFF;
+			--can-text-1: rgba(255, 255, 255, 0.95);
+			--can-text-2: rgba(255, 255, 255, 0.6);
+			--can-text-3: rgba(255, 255, 255, 0.4);
+			--can-border: rgba(255, 255, 255, 0.06);
+			--can-border-subtle: rgba(255, 255, 255, 0.03);
+			--can-divider: rgba(255, 255, 255, 0.05);
+			--can-surface-primary: rgba(255, 255, 255, 0.045);
+			--can-surface-secondary: rgba(255, 255, 255, 0.025);
+			--spacing-1: 8px;
+			--spacing-2: 12px;
+			--spacing-3: 16px;
+			--spacing-4: 24px;
+			--radius-sm: 6px;
+			--radius-md: 8px;
+			--radius-lg: 14px;
+		}
+		
+		body {
+			margin: 0;
+			padding: 0;
+			background: var(--can-bg);
+		background-image: 
+			radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.015) 0%, transparent 50%),
+			url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Cfilter id="n"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4"/%3E%3C/filter%3E%3Crect width="200" height="200" filter="url(%23n)" opacity="0.02"/%3E%3C/svg%3E');
+		overflow-y: auto;
+		overflow-x: hidden;
+		animation: grain 8s steps(10) infinite;
+	}
+	
+	@keyframes grain {
+		0%, 100% { background-position: 0 0, 0 0; }
+		10% { background-position: 0 0, -5% -10%; }
+		20% { background-position: 0 0, -15% 5%; }
+		30% { background-position: 0 0, 7% -25%; }
+		40% { background-position: 0 0, -5% 25%; }
+		50% { background-position: 0 0, -15% -15%; }
+		60% { background-position: 0 0, 15% 10%; }
+		70% { background-position: 0 0, 0 15%; }
+		80% { background-position: 0 0, -10% -10%; }
+		90% { background-position: 0 0, 10% 5%; }
+			max-width: 1400px;
+			width: 100%;
+			margin: 0 auto;
+			padding: var(--spacing-4);
+			box-sizing: border-box;
+		}
+		
+		* {
+			box-sizing: border-box;
+		}
+		
+		/* === TYPOGRAPHY === */
+		.page-title {
+			font-size: 22px;
+			font-weight: 600;
+			margin: 0;
+			color: var(--can-text-1);
+			letter-spacing: -0.5px;
+			display: flex;
+			align-items: center;
+			gap: var(--spacing-2);
+		}
+		
+		.title-badge {
+			padding: 3px 8px;
+			border-radius: var(--radius-sm);
+			background: var(--can-surface-secondary);
+			border: 1px solid var(--can-border);
+			font-size: 10px;
+			font-weight: 500;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			color: var(--can-text-2);
+		}
+		
+		.title-badge.live {
+			background: rgba(25, 195, 125, 0.12);
+			border-color: rgba(25, 195, 125, 0.3);
+			color: var(--can-success);
+		}
+		
+		.title-badge.idle {
+			background: rgba(255, 184, 77, 0.12);
+			border-color: rgba(255, 184, 77, 0.3);
+			color: var(--can-warning);
+		}
+		
+		.title-badge.offline {
+			animation: badgePulse 5s ease-in-out infinite;
+		}
+		
+		@keyframes badgePulse {
+			0%, 100% { opacity: 1; }
+			50% { opacity: 0.5; }
+		}
+		
+		.card-title {
+			font-size: 13px;
+			font-weight: 500;
+			color: var(--can-text-1);
+			margin: 0;
+			letter-spacing: -0.1px;
+		}
+		
+		.card-subtitle {
+			font-size: 11px;
+			color: var(--can-text-3);
+			margin: 0;
+		}
+		
+		.label-text {
+			font-size: 11px;
+			color: var(--can-text-2);
+			opacity: 0.7;
+		}
+		
+		.value-large {
+			font-size: 20px;
+			font-weight: 600;
+			color: var(--can-text-1);
+			line-height: 1.2;
+		}
+		
+		.value-medium {
+			font-size: 13px;
+			font-weight: 500;
+			color: var(--can-text-1);
+		}
+		
+		.mono {
+			font-family: 'Courier New', Courier, monospace;
+		}
+		
+		/* === HEADER === */
+		.can-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: var(--spacing-4);
+			padding-bottom: var(--spacing-3);
+			border-bottom: 1px solid var(--can-divider);
+		}
+		
+		.header-left {
+			display: flex;
+			align-items: center;
+			gap: var(--spacing-3);
+		}
+		
+		.can-nav {
+			display: flex;
+			gap: var(--spacing-1);
+			background: var(--can-surface-secondary);
+			padding: 4px;
+			border-radius: var(--radius-md);
+			border: 1px solid var(--can-border);
+		}
+		
+		.can-nav button {
+			padding: 7px 12px;
+			border-radius: var(--radius-sm);
+			border: none;
+			cursor: pointer;
+			background: transparent;
+			color: var(--can-text-2);
+			font-size: 12px;
+			transition: all 120ms;
+			font-weight: 500;
+			display: inline-flex;
+			align-items: center;
+			gap: 5px;
+		}
+		
+		.can-nav button:hover {
+			background: rgba(255, 255, 255, 0.06);
+			color: var(--can-text-1);
+		}
+		
+		.can-nav button:active {
+			transform: scale(0.97);
+		}
+		
+		/* === MAIN GRID === */
+		.main-grid {
+			display: grid;
+			grid-template-columns: 1fr;
+			gap: var(--spacing-3);
+			width: 100%;
+			min-width: 0;
+		}
+		
+		@media (min-width: 900px) {
+			.main-grid {
+				grid-template-columns: 2fr 1fr;
+			}
+		}
+		
+		.frames-card {
+			order: 2;
+			min-width: 0;
+			overflow: hidden;
+		}
+		
+		.sidebar {
+			display: flex;
+			flex-direction: column;
+			gap: var(--spacing-3);
+			order: 1;
+			min-width: 0;
+			overflow: hidden;
+		}
+		
+		@media (min-width: 900px) {
+			.frames-card {
+				order: 1;
+			}
+			
+			.sidebar {
+				order: 2;
+			}
+		}
+		
+		/* === CARDS === */
+		.card {
+			border-radius: var(--radius-lg);
+			overflow: hidden;
+		}
+		
+		.card-primary {
+			background: var(--can-surface-primary);
+			border: 1px solid var(--can-border-subtle);
+			box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+		}
+		
+		.card-secondary {
+			background: var(--can-surface-secondary);
+			border: 1px solid var(--can-border);
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+		}
+		
+		.card-header {
+			padding: var(--spacing-2) var(--spacing-3);
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			border-bottom: 1px solid var(--can-divider);
+		}
+		
+		.card-content {
+			padding: var(--spacing-3);
+		}
+		
+		.card-section {
+			padding: var(--spacing-3);
+		}
+		
+		.card-section + .card-section {
+			border-top: 1px solid var(--can-divider);
+		}
+		
+		/* === CONNECTION PANEL === */
+		.connection-grid {
+			display: flex;
+			flex-direction: column;
+			gap: var(--spacing-2);
+		}
+		
+		.connection-row {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 6px 0;
+			border-bottom: 1px solid var(--can-divider);
+		}
+		
+		.connection-row:last-child {
+			border-bottom: none;
+		}
+		
+		.connection-label {
+			font-size: 11px;
+			color: var(--can-text-2);
+			opacity: 0.7;
+		}
+		
+		.connection-value {
+			font-size: 13px;
+			color: var(--can-text-1);
+			font-weight: 500;
+		}
+		
+		/* === STATUS BADGE === */
+		.status-chip {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			padding: 4px 10px;
+			border-radius: 12px;
+			font-size: 11px;
+			font-weight: 500;
+			letter-spacing: 0.2px;
+			background: var(--can-surface-secondary);
+			border: 1px solid var(--can-border);
+		}
+		
+		.status-dot {
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background: var(--can-text-3);
+		}
+		
+		.status-chip.live {
+			border-color: rgba(25, 195, 125, 0.3);
+		}
+		
+		.status-chip.live .status-dot {
+			background: var(--can-success);
+			animation: pulse-dot 2s ease-in-out infinite;
+		}
+		
+		.status-chip.idle .status-dot {
+			background: var(--can-warning);
+		}
+		
+		.status-chip.disabled .status-dot {
+			background: var(--can-text-3);
+		}
+		
+		@keyframes pulse-dot {
+			0%, 100% { opacity: 1; transform: scale(1); }
+			50% { opacity: 0.4; transform: scale(0.9); }
+		}
+		
+		.mode-pill {
+			padding: 3px 8px;
+			border-radius: 8px;
+			background: var(--can-surface-secondary);
+			border: 1px solid var(--can-border);
+			font-size: 10px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			color: var(--can-text-2);
+			line-height: 1;
+		}
+		
+		/* === STATS PANEL === */
+		.stats-grid {
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			gap: var(--spacing-3);
+		}
+		
+		.stat-item {
+			text-align: left;
+		}
+		
+		.stat-label {
+			font-size: 11px;
+			color: var(--can-text-2);
+			opacity: 0.7;
+			margin-bottom: 4px;
+		}
+		
+		.stat-value {
+			font-size: 20px;
+			font-weight: 600;
+			color: var(--can-text-1);
+			font-family: 'Courier New', Courier, monospace;
+			transition: all 200ms ease;
+		}
+		
+		.stat-value.increment {
+			animation: statGlow 400ms ease-out;
+		}
+		
+		@keyframes statGlow {
+			0% { 
+				color: var(--can-accent);
+				transform: scale(1.03);
+			}
+			100% { 
+				color: var(--can-text-1);
+				transform: scale(1);
+			}
+		}
+		
+		/* === REACTIVE PANEL === */
+		.reactive-segmented {
+			display: flex;
+			gap: var(--spacing-1);
+			background: var(--can-surface-secondary);
+			padding: 4px;
+			border-radius: var(--radius-md);
+			border: 1px solid var(--can-border);
+		}
+		
+		.reactive-btn {
+			flex: 1;
+			padding: 8px 12px;
+			border-radius: var(--radius-sm);
+			border: none;
+			background: transparent;
+			color: var(--can-text-2);
+			cursor: pointer;
+			font-size: 12px;
+			font-weight: 500;
+			transition: all 120ms;
+			text-align: center;
+		}
+		
+		.reactive-btn:hover {
+			background: rgba(255, 255, 255, 0.03);
+			color: var(--can-text-1);
+		}
+		
+		.reactive-btn.active {
+			background: var(--can-accent);
+			color: white;
+			box-shadow: 0 2px 6px rgba(255, 140, 66, 0.25);
+		}
+		
+		.reactive-btn:active {
+			transform: scale(0.98);
+		}
+		
+		.mode-hint {
+			margin-top: var(--spacing-2);
+			padding: var(--spacing-2);
+			background: rgba(255, 255, 255, 0.02);
+			border-radius: var(--radius-sm);
+			font-size: 11px;
+			color: var(--can-text-3);
+			line-height: 1.5;
+		}
+		
+		/* === TOOLBAR === */
+		.toolbar {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 10px var(--spacing-3);
+			background: var(--can-surface-secondary);
+			border-bottom: 1px solid var(--can-divider);
+			min-height: 44px;
+		}
+		
+		.toolbar-group {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+		}
+		
+		.tool-btn {
+			padding: 7px 11px;
+			border-radius: var(--radius-sm);
+			border: 1px solid var(--can-border);
+			background: transparent;
+			color: var(--can-text-1);
+			font-size: 12px;
+			font-weight: 500;
+			cursor: pointer;
+			transition: all 120ms;
+			height: 32px;
+			display: inline-flex;
+			align-items: center;
+			gap: 5px;
+			line-height: 1;
+		}
+		
+		.tool-btn:hover {
+			background: rgba(255, 255, 255, 0.05);
+			border-color: rgba(255, 255, 255, 0.1);
+		}
+		
+		.tool-btn:active {
+			transform: scale(0.97);
+		}
+		
+		.tool-btn.pressed {
+			background: rgba(255, 255, 255, 0.08);
+		}
+		
+		.poll-dropdown {
+			position: relative;
+		}
+		
+		.poll-menu {
+			display: none;
+			position: absolute;
+			top: calc(100% + 6px);
+			right: 0;
+			background: rgba(15, 17, 21, 0.98);
+			border: 1px solid var(--can-border);
+			border-radius: var(--radius-md);
+			padding: 4px;
+			min-width: 140px;
+			box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+			z-index: 100;
+		}
+		
+		.poll-menu.show {
+			display: block;
+			animation: menuSlide 140ms ease;
+		}
+		
+		@keyframes menuSlide {
+			from { opacity: 0; transform: translateY(-3px); }
+			to { opacity: 1; transform: translateY(0); }
+		}
+		
+		.poll-option {
+			padding: 7px 11px;
+			border-radius: var(--radius-sm);
+			font-size: 12px;
+			color: var(--can-text-1);
+			cursor: pointer;
+			transition: background 100ms;
+		}
+		
+		.poll-option:hover {
+			background: rgba(255, 255, 255, 0.06);
+		}
+		
+		.poll-option.active {
+			background: var(--can-accent);
+			color: white;
+		}
+		
+		.pause-indicator {
+			display: none;
+			padding: 10px var(--spacing-3);
+			background: rgba(255, 184, 77, 0.08);
+			border-bottom: 1px solid rgba(255, 184, 77, 0.2);
+			color: var(--can-warning);
+			font-size: 12px;
+			text-align: center;
+		}
+		
+		/* === FRAMES TABLE === */
+		.table-container {
+			overflow-x: auto;
+			max-height: 500px;
+			overflow-y: auto;
+			position: relative;
+			background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.005) 1px, transparent 1px);
+			background-size: 24px 24px;
+		}
+		
+		#canFramesTable {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 12px;
+		}
+		
+		#canFramesTable th {
+			background: var(--can-surface-secondary);
+			color: var(--can-text-2);
+			padding: 10px 12px;
+			text-align: left;
+			font-size: 10px;
+			text-transform: uppercase;
+			letter-spacing: 0.6px;
+			font-weight: 600;
+			opacity: 0.7;
+			border-bottom: 1px solid var(--can-divider);
+			position: sticky;
+			top: 0;
+			z-index: 10;
+		}
+		
+		#canFramesTable tbody tr {
+			border-bottom: 1px solid rgba(255, 255, 255, 0.015);
+			height: 36px;
+		}
+		
+		#canFramesTable tbody tr:nth-child(even) {
+			background: rgba(255, 255, 255, 0.008);
+		}
+		
+		#canFramesTable tbody tr:hover {
+			background: rgba(255, 255, 255, 0.04);
+		}
+		
+		#canFramesTable tbody tr.flash-in {
+			animation: rowFlash 350ms ease-out;
+		}
+		
+		@keyframes rowFlash {
+			0% { background: rgba(58, 190, 255, 0.12); }
+			100% { background: transparent; }
+		}
+		
+		#canFramesTable td {
+			padding: 8px 12px;
+			color: var(--can-text-1);
+		}
+		
+		.can-id {
+			font-family: 'Courier New', Courier, monospace;
+			font-weight: 600;
+			font-size: 13px;
+		}
+		
+		.id-std { color: var(--can-cyan); }
+		.id-ext { color: var(--can-purple); }
+		
+		.data-bytes {
+			display: flex;
+			gap: 4px;
+			flex-wrap: wrap;
+		}
+		
+		.byte {
+			background: rgba(255, 255, 255, 0.06);
+			padding: 2px 6px;
+			border-radius: 4px;
+			font-family: 'Courier New', Courier, monospace;
+			font-size: 11px;
+		}
+		
+		/* === EMPTY STATE === */
+		.empty-state {
+			padding: 50px var(--spacing-3);
+			text-align: center;
+			color: var(--can-text-3);
+		}
+		
+		.empty-state-icon {
+			font-size: 28px;
+			margin-bottom: var(--spacing-2);
+			opacity: 0.25;
+		}
+		
+		.empty-state-title {
+			font-size: 13px;
+			font-weight: 500;
+			margin-bottom: var(--spacing-2);
+			color: var(--can-text-1);
+		}
+		
+		.empty-state-hints {
+			display: flex;
+			flex-wrap: wrap;
+			gap: var(--spacing-1);
+			justify-content: center;
+			margin-top: var(--spacing-2);
+		}
+		
+		.hint-chip {
+			padding: 5px 10px;
+			border-radius: var(--radius-sm);
+			background: rgba(255, 255, 255, 0.03);
+			border: 1px solid var(--can-border);
+			font-size: 11px;
+			color: var(--can-text-2);
+			cursor: pointer;
+			transition: all 120ms;
+		}
+		
+		.hint-chip:hover {
+			background: rgba(255, 255, 255, 0.05);
+			border-color: rgba(255, 255, 255, 0.12);
+			color: var(--can-text-1);
+		}
+		
+		/* === HEALTH INDICATOR === */
+		.health-strip {
+			padding: var(--spacing-2) var(--spacing-3);
+			background: rgba(255, 255, 255, 0.015);
+			border-bottom: 1px solid var(--can-divider);
+			display: flex;
+			align-items: center;
+			gap: var(--spacing-2);
+			font-size: 11px;
+		}
+		
+		.health-label {
+			color: var(--can-text-3);
+			font-weight: 500;
+		}
+		
+		.health-state {
+			color: var(--can-text-2);
+			display: flex;
+			align-items: center;
+			gap: 6px;
+		}
+		
+		.health-state::before {
+			content: '●';
+			font-size: 8px;
+		}
+		
+		.health-state.silent::before { color: var(--can-text-3); }
+		.health-state.listening::before { color: var(--can-cyan); }
+		.health-state.active::before { color: var(--can-success); }
+		.health-state.error::before { color: var(--can-danger); }
+		.health-state.busoff::before { color: var(--can-danger); animation: blink 1s infinite; }
+		
+		@keyframes blink {
+			0%, 50% { opacity: 1; }
+			51%, 100% { opacity: 0.3; }
+		}
+		
+		/* === TRAFFIC RATE === */
+		.traffic-rate {
+			font-size: 11px;
+			color: var(--can-text-2);
+			padding: 4px 8px;
+			background: rgba(255, 255, 255, 0.02);
+			border-radius: var(--radius-sm);
+			font-family: 'Courier New', Courier, monospace;
+		}
+		
+		/* === SIGNAL PRESENCE === */
+		.signal-presence {
+			padding: var(--spacing-2) var(--spacing-3);
+			background: rgba(255, 255, 255, 0.015);
+			border-bottom: 1px solid var(--can-divider);
+			display: flex;
+			flex-wrap: wrap;
+			gap: 6px;
+			min-height: 40px;
+			align-items: center;
+		}
+		
+		.signal-label {
+			font-size: 10px;
+			color: var(--can-text-3);
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			margin-right: 6px;
+		}
+		
+		.signal-chip {
+			padding: 3px 8px;
+			border-radius: var(--radius-sm);
+			background: rgba(58, 190, 255, 0.08);
+			border: 1px solid rgba(58, 190, 255, 0.2);
+			font-size: 10px;
+			font-family: 'Courier New', Courier, monospace;
+			color: var(--can-cyan);
+			cursor: pointer;
+			transition: all 200ms;
+			animation: chipFadeIn 300ms ease;
+		}
+		
+		.signal-chip:hover {
+			background: rgba(58, 190, 255, 0.15);
+			border-color: rgba(58, 190, 255, 0.4);
+		}
+		
+		.signal-chip.ext {
+			background: rgba(165, 110, 255, 0.08);
+			border-color: rgba(165, 110, 255, 0.2);
+			color: var(--can-purple);
+		}
+		
+		.signal-chip.ext:hover {
+			background: rgba(165, 110, 255, 0.15);
+			border-color: rgba(165, 110, 255, 0.4);
+		}
+		
+		.signal-chip.active {
+			background: rgba(255, 140, 66, 0.15);
+			border-color: var(--can-accent);
+		}
+		
+		@keyframes chipFadeIn {
+			from { opacity: 0; transform: scale(0.9); }
+			to { opacity: 1; transform: scale(1); }
+		}
+		
+		/* === FILTER BAR === */
+		.filter-bar {
+			padding: var(--spacing-2) var(--spacing-3);
+			background: rgba(255, 255, 255, 0.015);
+			border-bottom: 1px solid var(--can-divider);
+			display: flex;
+			align-items: center;
+			gap: var(--spacing-2);
+			flex-wrap: wrap;
+		}
+		
+		.filter-input {
+			padding: 6px 10px;
+			border-radius: var(--radius-sm);
+			border: 1px solid var(--can-border);
+			background: rgba(255, 255, 255, 0.03);
+			color: var(--can-text-1);
+			font-size: 11px;
+			font-family: 'Courier New', Courier, monospace;
+			width: 120px;
+			transition: all 120ms;
+		}
+		
+		.filter-input:focus {
+			outline: none;
+			border-color: var(--can-accent);
+			background: rgba(255, 255, 255, 0.05);
+		}
+		
+		.filter-input::placeholder {
+			color: var(--can-text-3);
+		}
+		
+		.filter-chip {
+			padding: 5px 10px;
+			border-radius: var(--radius-sm);
+			border: 1px solid var(--can-border);
+			background: transparent;
+			color: var(--can-text-2);
+			font-size: 11px;
+			cursor: pointer;
+			transition: all 120ms;
+		}
+		
+		.filter-chip:hover {
+			background: rgba(255, 255, 255, 0.04);
+			border-color: rgba(255, 255, 255, 0.12);
+		}
+		
+		.filter-chip.active {
+			background: var(--can-accent);
+			border-color: var(--can-accent);
+			color: white;
+		}
+		
+		/* === PERFORMANCE FOOTER === */
+		.perf-footer {
+			padding: 8px var(--spacing-3);
+			background: rgba(255, 255, 255, 0.01);
+			border-top: 1px solid var(--can-divider);
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			font-size: 10px;
+			color: var(--can-text-3);
+			font-family: 'Courier New', Courier, monospace;
+		}
+		
+		.perf-item {
+			display: flex;
+			gap: 4px;
+		}
+		
+		.perf-label {
+			opacity: 0.5;
+		}
+		
+		.perf-value {
+			color: var(--can-text-2);
+		}
+		
+		/* === EFFECT PREVIEW === */
+		.effect-preview {
+			margin-top: var(--spacing-2);
+			height: 6px;
+			background: rgba(255, 255, 255, 0.03);
+			border-radius: 3px;
+			overflow: hidden;
+			position: relative;
+		}
+		
+		.effect-bar {
+			height: 100%;
+			background: linear-gradient(90deg, var(--can-accent), var(--can-cyan));
+			border-radius: 3px;
+			transition: width 300ms ease;
+		}
+		
+		.effect-preview.rpm .effect-bar {
+			animation: rpmPulse 2s ease-in-out infinite;
+		}
+		
+		.effect-preview.speed .effect-bar {
+			animation: speedSweep 3s linear infinite;
+		}
+		
+		@keyframes rpmPulse {
+			0%, 100% { width: 20%; }
+			50% { width: 85%; }
+		}
+		
+		@keyframes speedSweep {
+			0% { width: 0%; }
+			50% { width: 100%; }
+			100% { width: 0%; }
+		}
+		
+		/* === RESPONSIVE === */
+		@media (max-width: 900px) {
+			.container {
+				padding: var(--spacing-2);
+			}
+			
+			.can-header {
+				flex-direction: column;
+				align-items: flex-start;
+				gap: var(--spacing-2);
+			}
+			
+			.header-left {
+				flex-direction: column;
+				align-items: flex-start;
+				gap: var(--spacing-2);
+			}
+			
+			.page-title {
+				font-size: 20px;
+			}
+			
+			.stats-grid {
+				grid-template-columns: repeat(2, 1fr);
+			}
+			
+			.can-nav {
+				width: 100%;
+			}
+			
+			.can-nav button {
+				flex: 1;
+			}
+		}
+		
+		@media (max-width: 600px) {
+			#canFramesTable {
+				font-size: 11px;
+			}
+			
+			#canFramesTable th,
+			#canFramesTable td {
+				padding: 6px 8px;
+			}
+			
+			.byte {
+				padding: 1px 4px;
+				font-size: 10px;
+			}
+			
+			.toolbar {
+				flex-wrap: wrap;
+			}
+		}
+	</style>
+</head>
+<body>
+
+<div class="container">
+	<!-- Header -->
+	<header class="can-header">
+		<div class="header-left">
+			<h1 class="page-title">
+				CAN Bus Monitor
+				<span class="title-badge" id="headerBadge">OFFLINE</span>
+			</h1>
+		</div>
+		<nav class="can-nav">
+			<button onclick="window.location=getURL('/')">Home</button>
+			<button onclick="window.location=getURL('/#Colors')">Colors</button>
+		</nav>
+	</header>
+	
+	<!-- Main Grid -->
+	<div class="main-grid">
+		<!-- Left: Live Frames (Hero) -->
+		<section class="frames-card card card-primary">
+			<div class="toolbar">
+				<div class="toolbar-group">
+					<button class="tool-btn" id="btnPause" onclick="togglePause()">⏸ Pause</button>
+					<button class="tool-btn" onclick="clearFrames()">🗑 Clear</button>
+					<button class="tool-btn" onclick="copyFramesJSON()">📋 Copy</button>
+					<button class="tool-btn" id="btnCapture" onclick="toggleCapture()">⏺ Capture</button>
+				</div>
+				<div class="toolbar-group">
+					<span class="traffic-rate" id="trafficRate">0 fps</span>
+					<div class="poll-dropdown">
+						<button class="tool-btn" onclick="togglePollMenu()">⚡ <span id="pollRateLabel">2 Hz</span> ▾</button>
+						<div id="pollMenu" class="poll-menu">
+							<div class="poll-option" data-rate="0" onclick="selectPollRate(0)">Slow (1 Hz)</div>
+							<div class="poll-option active" data-rate="1" onclick="selectPollRate(1)">Normal (2 Hz)</div>
+							<div class="poll-option" data-rate="2" onclick="selectPollRate(2)">Fast (5 Hz)</div>
+							<div class="poll-option" data-rate="3" onclick="selectPollRate(3)">Turbo (10 Hz)</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			
+			<!-- Health Strip -->
+			<div class="health-strip">
+				<span class="health-label">BUS:</span>
+				<span class="health-state silent" id="healthState">Silent</span>
+			</div>
+			
+			<!-- Signal Presence -->
+			<div class="signal-presence" id="signalPresence">
+				<span class="signal-label">Signals:</span>
+			</div>
+			
+			<!-- Filter Bar -->
+			<div class="filter-bar">
+				<input type="text" class="filter-input" id="filterInput" placeholder="Filter by ID..." oninput="applyFilters()">
+				<div class="filter-chip" id="filterSTD" onclick="toggleFilter('std')">STD</div>
+				<div class="filter-chip" id="filterEXT" onclick="toggleFilter('ext')">EXT</div>
+				<div class="filter-chip" id="filterChanged" onclick="toggleFilter('changed')">Changed</div>
+				<div class="filter-chip" id="filterErrors" onclick="toggleFilter('errors')">Errors</div>
+			</div>
+			
+			<div class="pause-indicator" id="pauseIndicator">⏸ Paused</div>
+			
+			<div class="table-container">
+				<table id="canFramesTable">
+					<thead>
+						<tr>
+							<th>Time</th>
+							<th>ID</th>
+							<th>Type</th>
+							<th>DLC</th>
+							<th>Data</th>
+							<th>Decoded</th>
+						</tr>
+					</thead>
+					<tbody id="canFramesBody">
+						<tr><td colspan="6">
+							<div class="empty-state">
+								<div class="empty-state-icon">📡</div>
+								<div class="empty-state-title">No CAN traffic</div>
+								<div class="empty-state-hints">
+									<span class="hint-chip" title="Try 500 kbps">💡 Try 500k</span>
+									<span class="hint-chip" title="Try 250 kbps">💡 Try 250k</span>
+									<span class="hint-chip" title="Check wiring">🔌 Check pins</span>
+								</div>
+							</div>
+						</td></tr>
+					</tbody>
+				</table>
+			</div>
+			
+			<!-- Performance Footer -->
+			<div class="perf-footer">
+				<div class="perf-item">
+					<span class="perf-label">Node:</span>
+					<span class="perf-value">Master</span>
+				</div>
+				<div class="perf-item">
+					<span class="perf-label">Poll:</span>
+					<span class="perf-value" id="perfPoll">2 Hz</span>
+				</div>
+				<div class="perf-item">
+					<span class="perf-label">Render:</span>
+					<span class="perf-value" id="perfRender">0ms</span>
+				</div>
+			</div>
+		</section>
+		
+		<!-- Right: Sidebar -->
+		<aside class="sidebar">
+			<!-- Health Card (Connection + Stats merged) -->
+			<div class="card card-secondary">
+				<div class="card-section">
+					<div class="card-header" style="border-bottom: none; padding-bottom: 8px;">
+						<h3 class="card-title">Connection</h3>
+						<span class="status-chip disabled" id="statusChip">
+							<span class="status-dot"></span>
+							<span id="statusText">Disabled</span>
+						</span>
+					</div>
+					<div class="connection-grid">
+						<div class="connection-row">
+							<span class="connection-label">Mode</span>
+							<span class="mode-pill" id="modePill">NORMAL</span>
+						</div>
+						<div class="connection-row">
+							<span class="connection-label">Bitrate</span>
+							<span class="connection-value" id="bitrateText">--</span>
+						</div>
+						<div class="connection-row">
+							<span class="connection-label">Pins</span>
+							<span class="connection-value mono" id="pinsText">RX -- / TX --</span>
+						</div>
+						<div class="connection-row">
+							<span class="connection-label">Last frame</span>
+							<span class="connection-value" id="lastFrameText">Never</span>
+						</div>
+					</div>
+				</div>
+				
+				<div class="card-section">
+					<div style="padding: 0 0 var(--spacing-2) 0;">
+						<h3 class="card-title">Statistics</h3>
+					</div>
+					<div class="stats-grid">
+						<div class="stat-item">
+							<div class="stat-label">RX frames</div>
+							<div class="stat-value mono" id="statRx">0</div>
+						</div>
+						<div class="stat-item">
+							<div class="stat-label">TX frames</div>
+							<div class="stat-value mono" id="statTx">0</div>
+						</div>
+						<div class="stat-item">
+							<div class="stat-label">Bus errors</div>
+							<div class="stat-value mono" id="statErrors">0</div>
+						</div>
+						<div class="stat-item">
+							<div class="stat-label">Overruns</div>
+							<div class="stat-value mono" id="statOverruns">0</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			
+			<!-- Reactive Panel -->
+			<div class="card card-secondary">
+				<div class="card-header">
+					<h3 class="card-title">Reactive modes</h3>
+				</div>
+				<div class="card-content">
+					<div class="reactive-segmented">
+						<button class="reactive-btn active" data-effect="0" onclick="selectEffect(0)">None</button>
+						<button class="reactive-btn" data-effect="1" onclick="selectEffect(1)">RPM</button>
+						<button class="reactive-btn" data-effect="2" onclick="selectEffect(2)">Speed</button>
+					</div>
+					
+					<!-- Effect Preview -->
+					<div class="effect-preview" id="effectPreview" style="display: none;">
+						<div class="effect-bar"></div>
+					</div>
+					
+					<div class="mode-hint" id="modeHint" style="display: none;"></div>
+				</div>
+			</div>
+		</aside>
+	</div>
+</div>
+
+<script>
+let canData = null;
+let pollInterval = null;
+let isPaused = false;
+let framesCache = [];
+let pollRates = [1000, 500, 200, 100]; // slow, normal, fast, turbo (in ms)
+let currentPollRate = 1; // default to normal (2Hz)
+let previousCounters = { rx: 0, tx: 0, errors: 0, overruns: 0 };
+let lastRxCount = 0;
+
+// New product maturity features
+let trafficHistory = []; // Track frames/sec over time
+let signalIds = new Map(); // Track seen IDs: { id -> lastSeenTime }
+let filterState = { input: '', std: false, ext: false, changed: false, errors: false };
+let isCapturing = false;
+let captureBuffer = [];
+let perfMetrics = { renderTime: 0 };
+let lastUpdateTime = 0;
+
+function initCAN() {
+	// Set initial poll rate
+	currentPollRate = parseInt(localStorage.getItem('canPollRate') || '1');
+	updatePollMenuSelection();
+	updatePollRateLabel();
+	
+	// Load saved effect
+	const savedEffect = parseInt(localStorage.getItem('canEffect') || '0');
+	selectEffect(savedEffect, false);
+	
+	// Close poll menu when clicking outside
+	document.addEventListener('click', function(e) {
+		const dropdown = document.querySelector('.poll-dropdown');
+		const menu = document.getElementById('pollMenu');
+		if (dropdown && !dropdown.contains(e.target)) {
+			menu.classList.remove('show');
+		}
+	});
+	
+	// Start polling
+	startPolling();
+	fetchCANData();
+}
+
+function startPolling() {
+	if (pollInterval) clearInterval(pollInterval);
+	if (!isPaused) {
+		pollInterval = setInterval(fetchCANData, pollRates[currentPollRate]);
+	}
+}
+
+function fetchCANData() {
+	if (isPaused) return;
+	
+	const wantsFrames = isCapturing;
+	const canUrl = wantsFrames ? '/json/can?full=1' : '/json/can';
+	
+	fetch(getURL(canUrl))
+		.then(response => response.json())
+		.then(data => {
+			canData = data;
+			updateUI(data);
+		})
+		.catch(err => {
+			console.error('CAN fetch error:', err);
+			updateStatusBadge('error');
+		});
+}
+
+function updateUI(data) {
+	const startTime = performance.now();
+	const can = data.can || {};
+	const frames = data.frames || [];
+	const now = data.nowMs || Date.now();
+	
+	// Update status strip
+	updateStatusStrip(can);
+	
+	// Update new product maturity features
+	updateHealthState(can);
+	updateTrafficRate(can.rxCount || 0);
+	updateSignalPresence(frames);
+	updatePerfFooter();
+	
+	// Update counters with animation
+	updateCounter('statRx', can.rxCount || 0, previousCounters.rx);
+	updateCounter('statTx', can.txCount || 0, previousCounters.tx);
+	updateCounter('statErrors', can.errors || 0, previousCounters.errors);
+	updateCounter('statOverruns', can.overruns || 0, previousCounters.overruns);
+	
+	previousCounters = {
+		rx: can.rxCount || 0,
+		tx: can.txCount || 0,
+		errors: can.errors || 0,
+		overruns: can.overruns || 0
+	};
+	
+	// Update frames table
+	if (frames.length > 0 && frames.length !== framesCache.length) {
+		const isNewFrames = frames.length > framesCache.length;
+		framesCache = frames;
+		renderFrames(frames, now, isNewFrames);
+		
+		// Add to capture buffer if capturing
+		if (isCapturing && isNewFrames) {
+			captureBuffer.push(...frames.slice(framesCache.length - (frames.length - framesCache.length)));
+		}
+	}
+	
+	// Track render time
+	perfMetrics.renderTime = performance.now() - startTime;
+}
+
+function updateStatusStrip(can) {
+	const statusChip = document.getElementById('statusChip');
+	const statusText = document.getElementById('statusText');
+	const modePill = document.getElementById('modePill');
+	const bitrateText = document.getElementById('bitrateText');
+	const pinsText = document.getElementById('pinsText');
+	const lastFrameText = document.getElementById('lastFrameText');
+	const headerBadge = document.getElementById('headerBadge');
+	
+	// Status chip
+	let chipClass = 'disabled';
+	let chipText = 'Disabled';
+	let headerBadgeText = 'OFFLINE';
+	let headerBadgeClass = '';
+	
+	if (can.enabled && can.started) {
+		if (can.rxCount > 0 && can.msSinceFrame < 5000) {
+			chipClass = 'live';
+			chipText = 'Live';
+			headerBadgeText = 'LIVE';
+			headerBadgeClass = 'live';
+		} else if (can.rxCount > 0) {
+			chipClass = 'idle';
+			chipText = 'Idle';
+			headerBadgeText = 'IDLE';
+			headerBadgeClass = 'idle';
+		} else {
+			chipClass = 'idle';
+			chipText = 'Waiting';
+			headerBadgeText = 'WAITING';
+			headerBadgeClass = 'idle';
+		}
+	}
+	
+	statusChip.className = `status-chip ${chipClass}`;
+	statusText.textContent = chipText;
+	lastRxCount = can.rxCount || 0;
+	
+	// Update header badge
+	if (headerBadge) {
+		headerBadge.textContent = headerBadgeText;
+		headerBadge.className = `title-badge ${headerBadgeClass}`;
+	}
+	
+	// Mode
+	modePill.textContent = can.listenOnly ? 'LISTEN ONLY' : 'NORMAL';
+	
+	// Bitrate
+	bitrateText.textContent = can.bitrate ? `${can.bitrate / 1000}k` : '--';
+	
+	// Pins
+	pinsText.textContent = `RX ${can.rxPin || '--'} / TX ${can.txPin || '--'}`;
+	
+	// Last frame
+	if (can.rxCount > 0) {
+		const ms = can.msSinceFrame || 0;
+		lastFrameText.textContent = ms < 1000 
+			? `${ms}ms ago` 
+			: `${Math.floor(ms / 1000)}s ago`;
+	} else {
+		lastFrameText.textContent = 'Never';
+	}
+}
+
+function updateCounter(elementId, newValue, oldValue) {
+	const el = document.getElementById(elementId);
+	if (!el) return;
+	
+	if (newValue !== oldValue && newValue > oldValue) {
+		el.classList.remove('increment');
+		void el.offsetWidth; // Force reflow
+		el.classList.add('increment');
+		setTimeout(() => el.classList.remove('increment'), 500);
+	}
+	
+	el.textContent = newValue;
+}
+
+function renderFrames(frames, now, isNewFrames) {
+	const tbody = document.getElementById('canFramesBody');
+	
+	if (frames.length === 0) {
+		if (!isCapturing) {
+			tbody.innerHTML = `<tr><td colspan="6">
+				<div class="empty-state">
+					<div class="empty-state-icon">📥</div>
+					<div class="empty-state-title">Capture is off</div>
+					<div class="empty-state-hints">
+						<span class="hint-chip" onclick="toggleCapture()">⏺ Enable capture to load frames</span>
+					</div>
+				</div>
+			</td></tr>`;
+			return;
+		}
+
+		// Intelligent empty state
+		const canEnabled = canData && canData.can && canData.can.enabled;
+		const rxCount = canData && canData.can ? canData.can.rxCount : 0;
+		
+		if (canEnabled && rxCount === 0) {
+			// Guided troubleshooting
+			tbody.innerHTML = `<tr><td colspan="6">
+				<div class="empty-state">
+					<div class="empty-state-icon">📡</div>
+					<div class="empty-state-title">No CAN traffic detected</div>
+					<div class="empty-state-hints">
+						<span class="hint-chip" onclick="alert('Try setting bitrate to 500 kbps in settings')" title="Try 500 kbps">💡 Try 500k</span>
+						<span class="hint-chip" onclick="alert('Try setting bitrate to 250 kbps in settings')" title="Try 250 kbps">💡 Try 250k</span>
+						<span class="hint-chip" onclick="alert('Check RX/TX pins and termination resistor')" title="Check wiring">🔌 Check pins</span>
+						<span class="hint-chip" onclick="alert('Ensure listen-only mode is enabled if just monitoring')" title="Confirm listen-only">👂 Listen mode?</span>
+					</div>
+				</div>
+			</td></tr>`;
+		} else {
+			tbody.innerHTML = `<tr><td colspan="6">
+				<div class="empty-state">
+					<div class="empty-state-icon">📡</div>
+					<div class="empty-state-title">No CAN traffic</div>
+					<div class="empty-state-hints">
+						<span class="hint-chip">📡 Waiting for traffic</span>
+					</div>
+				</div>
+			</td></tr>`;
+		}
+		return;
+	}
+	
+	tbody.innerHTML = '';
+	
+	// Apply filters
+	let displayFrames = frames.slice(-20);
+	
+	// Filter by ID
+	if (filterState.input) {
+		const searchTerm = filterState.input.replace('0x', '').toLowerCase();
+		displayFrames = displayFrames.filter(f => {
+			const idHex = f.id.toString(16).toUpperCase();
+			return idHex.includes(searchTerm.toUpperCase());
+		});
+	}
+	
+	// Filter by type
+	if (filterState.std && !filterState.ext) {
+		displayFrames = displayFrames.filter(f => !f.ext);
+	} else if (filterState.ext && !filterState.std) {
+		displayFrames = displayFrames.filter(f => f.ext);
+	}
+	
+	// TODO: Implement 'changed' and 'errors' filters when backend provides delta/error info
+	
+	// Render in reverse order (newest first)
+	for (let i = displayFrames.length - 1; i >= 0; i--) {
+		const frame = displayFrames[i];
+		const row = tbody.insertRow();
+		
+		// Flash animation on newest frame
+		if (isNewFrames && i === displayFrames.length - 1) {
+			row.classList.add('flash-in');
+		}
+		
+		// Time
+		const elapsed = now - frame.t_ms;
+		const timeStr = elapsed < 1000 ? `${elapsed}ms` : `${Math.floor(elapsed / 1000)}s`;
+		row.insertCell().textContent = timeStr;
+		
+		// ID with color coding
+		const idCell = row.insertCell();
+		const idHex = '0x' + frame.id.toString(16).toUpperCase().padStart(3, '0');
+		idCell.innerHTML = `<span class="can-id ${frame.ext ? 'id-ext' : 'id-std'}">${idHex}</span>`;
+		
+		// Type
+		const typeCell = row.insertCell();
+		typeCell.textContent = (frame.ext ? 'EXT' : 'STD') + (frame.rtr ? ' RTR' : '');
+		typeCell.className = 'mono';
+		
+		// DLC
+		const dlcCell = row.insertCell();
+		dlcCell.textContent = frame.dlc;
+		dlcCell.className = 'mono';
+		
+		// Data bytes
+		const dataCell = row.insertCell();
+		if (frame.data && frame.data.length > 0) {
+			const bytesDiv = document.createElement('div');
+			bytesDiv.className = 'data-bytes';
+			frame.data.forEach(byte => {
+				const pill = document.createElement('span');
+				pill.className = 'byte';
+				pill.textContent = byte.toString(16).toUpperCase().padStart(2, '0');
+				bytesDiv.appendChild(pill);
+			});
+			dataCell.appendChild(bytesDiv);
+		} else {
+			dataCell.textContent = '--';
+		}
+		
+		// Decoded column (for future extensibility)
+		const decodedCell = row.insertCell();
+		decodedCell.textContent = '--';
+		decodedCell.style.color = 'var(--can-text-3)';
+		decodedCell.style.fontSize = '11px';
+	}
+	
+	// Show "no matches" if filters active but no results
+	if (displayFrames.length === 0 && frames.length > 0) {
+		tbody.innerHTML = `<tr><td colspan="6">
+			<div class="empty-state">
+				<div class="empty-state-icon">🔍</div>
+				<div class="empty-state-title">No frames match filters</div>
+				<div class="empty-state-hints">
+					<span class="hint-chip" onclick="document.getElementById('filterInput').value=''; applyFilters()">Clear filters</span>
+				</div>
+			</div>
+		</td></tr>`;
+	}
+}
+
+function selectEffect(effectId, shouldSave = true) {
+	// Update UI
+	document.querySelectorAll('.reactive-btn').forEach(btn => {
+		btn.classList.remove('active');
+	});
+	const selectedBtn = document.querySelector(`.reactive-btn[data-effect="${effectId}"]`);
+	if (selectedBtn) {
+		selectedBtn.classList.add('active');
+	}
+	
+	// Update effect preview
+	updateEffectPreview(effectId);
+	
+	// Show hint
+	const hintEl = document.getElementById('modeHint');
+	const hints = {
+		0: '',
+		1: '💡 Pulse brightness based on engine RPM',
+		2: '💡 Bar graph based on vehicle speed'
+	};
+	
+	if (effectId > 0) {
+		hintEl.textContent = hints[effectId] || '';
+		hintEl.style.display = 'block';
+	} else {
+		hintEl.style.display = 'none';
+	}
+	
+	// Save and send to backend
+	if (shouldSave) {
+		localStorage.setItem('canEffect', effectId);
+		fetch(getURL('/json/state'), {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ can: { uiEffect: effectId } })
+		}).catch(err => console.error('Failed to set effect:', err));
+	}
+}
+
+function togglePollMenu() {
+	const menu = document.getElementById('pollMenu');
+	menu.classList.toggle('show');
+}
+
+function selectPollRate(rate) {
+	currentPollRate = rate;
+	localStorage.setItem('canPollRate', rate);
+	updatePollMenuSelection();
+	updatePollRateLabel();
+	startPolling();
+	document.getElementById('pollMenu').classList.remove('show');
+}
+
+function updatePollRateLabel() {
+	const rateLabels = ['1 Hz', '2 Hz', '5 Hz', '10 Hz'];
+	const label = document.getElementById('pollRateLabel');
+	if (label) {
+		label.textContent = rateLabels[currentPollRate] || '2 Hz';
+	}
+}
+
+function updatePollMenuSelection() {
+	document.querySelectorAll('.poll-option').forEach(opt => opt.classList.remove('active'));
+	const selected = document.querySelector(`[data-rate="${currentPollRate}"]`);
+	if (selected) selected.classList.add('active');
+}
+
+function togglePause() {
+	isPaused = !isPaused;
+	const btn = document.getElementById('btnPause');
+	const indicator = document.getElementById('pauseIndicator');
+	
+	if (isPaused) {
+		btn.textContent = '▶ Resume';
+		indicator.style.display = 'block';
+		if (pollInterval) {
+			clearInterval(pollInterval);
+			pollInterval = null;
+		}
+	} else {
+		btn.textContent = '⏸ Pause';
+		indicator.style.display = 'none';
+		startPolling();
+		fetchCANData();
+	}
+}
+
+function clearFrames() {
+	framesCache = [];
+	const tbody = document.getElementById('canFramesBody');
+	tbody.innerHTML = `<tr><td colspan="6">
+		<div class="empty-state">
+			<div class="empty-state-icon">🗑️</div>
+			<div class="empty-state-title">Frames cleared</div>
+			<div class="empty-state-hints">
+				<span class="hint-chip">📡 Waiting for traffic</span>
+			</div>
+		</div>
+	</td></tr>`;
+}
+
+function copyFramesJSON() {
+	const json = JSON.stringify(framesCache, null, 2);
+	navigator.clipboard.writeText(json)
+		.then(() => alert('Frames JSON copied to clipboard!'))
+		.catch(err => {
+			console.error('Copy failed:', err);
+			alert('Copy failed. See console.');
+		});
+}
+
+// === NEW PRODUCT MATURITY FUNCTIONS ===
+
+function updateTrafficRate(rxCount) {
+	const now = Date.now();
+	
+	// Calculate frames per second since last update
+	if (lastUpdateTime > 0 && rxCount > lastRxCount) {
+		const deltaFrames = rxCount - lastRxCount;
+		const deltaTime = (now - lastUpdateTime) / 1000; // seconds
+		const fps = deltaTime > 0 ? Math.round(deltaFrames / deltaTime) : 0;
+		
+		// Add to history (keep last 10 seconds worth)
+		trafficHistory.push({ time: now, fps });
+		trafficHistory = trafficHistory.filter(h => now - h.time < 10000);
+		
+		// Update UI
+		document.getElementById('trafficRate').textContent = `${fps} fps`;
+	} else if (rxCount === lastRxCount && now - lastUpdateTime > 2000) {
+		// No new frames for 2+ seconds
+		document.getElementById('trafficRate').textContent = '0 fps';
+	}
+	
+	lastRxCount = rxCount;
+	lastUpdateTime = now;
+}
+
+function updateHealthState(can) {
+	const healthState = document.getElementById('healthState');
+	if (!healthState) return;
+	
+	let state = 'silent';
+	let stateText = 'Silent';
+	
+	if (can.enabled && can.started) {
+		const rxCount = can.rxCount || 0;
+		const errors = can.errors || 0;
+		const msSince = can.msSinceFrame || 999999;
+		
+		if (errors > 10) {
+			state = 'busoff';
+			stateText = 'Bus Off';
+		} else if (errors > 5) {
+			state = 'error';
+			stateText = 'Error Passive';
+		} else if (rxCount > 0 && msSince < 2000) {
+			state = 'active';
+			stateText = 'Traffic Active';
+		} else if (rxCount > 0) {
+			state = 'listening';
+			stateText = 'Listening';
+		} else {
+			state = 'listening';
+			stateText = 'Listening';
+		}
+	}
+	
+	healthState.className = `health-state ${state}`;
+	healthState.textContent = stateText;
+}
+
+function updateSignalPresence(frames) {
+	const container = document.getElementById('signalPresence');
+	if (!container) return;
+	
+	const now = Date.now();
+	
+	// Update seen IDs with current timestamp
+	frames.forEach(frame => {
+		signalIds.set(frame.id, now);
+	});
+	
+	// Remove IDs not seen in last 5 seconds
+	for (const [id, lastSeen] of signalIds.entries()) {
+		if (now - lastSeen > 5000) {
+			signalIds.delete(id);
+		}
+	}
+	
+	// Rebuild signal chips
+	const existingChips = new Set(
+		Array.from(container.querySelectorAll('.signal-chip')).map(c => c.dataset.id)
+	);
+	const currentIds = Array.from(signalIds.keys()).sort((a, b) => a - b);
+	
+	// Remove chips that are no longer present
+	container.querySelectorAll('.signal-chip').forEach(chip => {
+		if (!signalIds.has(parseInt(chip.dataset.id))) {
+			chip.remove();
+		}
+	});
+	
+	// Add new chips
+	currentIds.forEach(id => {
+		if (!existingChips.has(id.toString())) {
+			const frame = frames.find(f => f.id === id);
+			const chip = document.createElement('span');
+			chip.className = `signal-chip ${frame && frame.ext ? 'ext' : ''}`;
+			chip.dataset.id = id;
+			chip.textContent = '0x' + id.toString(16).toUpperCase().padStart(3, '0');
+			chip.onclick = () => filterById(id);
+			container.appendChild(chip);
+		}
+	});
+	
+	// If no signals, show placeholder
+	if (signalIds.size === 0 && container.querySelectorAll('.signal-chip').length === 0) {
+		// Keep the label, just clear chips
+	}
+}
+
+function filterById(id) {
+	const input = document.getElementById('filterInput');
+	if (input) {
+		input.value = '0x' + id.toString(16).toUpperCase().padStart(3, '0');
+		filterState.input = input.value;
+		applyFilters();
+		
+		// Highlight the active chip
+		document.querySelectorAll('.signal-chip').forEach(c => {
+			c.classList.toggle('active', parseInt(c.dataset.id) === id);
+		});
+	}
+}
+
+function toggleFilter(type) {
+	filterState[type] = !filterState[type];
+	const chip = document.getElementById(`filter${type.toUpperCase()}`);
+	if (chip) {
+		chip.classList.toggle('active', filterState[type]);
+	}
+	applyFilters();
+}
+
+function applyFilters() {
+	const input = document.getElementById('filterInput');
+	if (input) {
+		filterState.input = input.value.toLowerCase();
+	}
+	
+	// For now, just store filter state
+	// Actual filtering will be applied in renderFrames
+	// Re-render current frames with filters
+	if (framesCache.length > 0) {
+		renderFrames(framesCache, Date.now(), false);
+	}
+}
+
+function toggleCapture() {
+	isCapturing = !isCapturing;
+	const btn = document.getElementById('btnCapture');
+	
+	if (isCapturing) {
+		btn.style.background = 'var(--can-accent)';
+		btn.style.borderColor = 'var(--can-accent)';
+		btn.style.color = 'white';
+		captureBuffer = [];
+		
+		// Capture for 10 seconds then export
+		setTimeout(() => {
+			if (isCapturing) {
+				exportCapture();
+			}
+		}, 10000);
+	} else {
+		btn.style.background = '';
+		btn.style.borderColor = '';
+		btn.style.color = '';
+		exportCapture();
+	}
+
+	fetchCANData();
+}
+
+function exportCapture() {
+	isCapturing = false;
+	const btn = document.getElementById('btnCapture');
+	btn.style.background = '';
+	btn.style.borderColor = '';
+	btn.style.color = '';
+	
+	if (captureBuffer.length > 0) {
+		const json = JSON.stringify(captureBuffer, null, 2);
+		const blob = new Blob([json], { type: 'application/json' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `can-capture-${Date.now()}.json`;
+		a.click();
+		URL.revokeObjectURL(url);
+		captureBuffer = [];
+	}
+}
+
+function updatePerfFooter() {
+	const perfPoll = document.getElementById('perfPoll');
+	const perfRender = document.getElementById('perfRender');
+	
+	if (perfPoll) {
+		const rateLabels = ['1 Hz', '2 Hz', '5 Hz', '10 Hz'];
+		perfPoll.textContent = rateLabels[currentPollRate] || '2 Hz';
+	}
+	
+	if (perfRender) {
+		perfRender.textContent = `${perfMetrics.renderTime.toFixed(1)}ms`;
+	}
+}
+
+function updateEffectPreview(effectId) {
+	const preview = document.getElementById('effectPreview');
+	if (!preview) return;
+	
+	if (effectId === 0) {
+		preview.style.display = 'none';
+	} else {
+		preview.style.display = 'block';
+		preview.className = 'effect-preview';
+		
+		if (effectId === 1) {
+			preview.classList.add('rpm');
+		} else if (effectId === 2) {
+			preview.classList.add('speed');
+		}
+	}
+}
+
+window.addEventListener('beforeunload', function() {
+	if (pollInterval) clearInterval(pollInterval);
+});
+</script>
+
+</body>
+</html>
