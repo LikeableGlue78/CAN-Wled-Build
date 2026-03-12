@@ -1,3 +1,59 @@
+/* ═══════════════════════════════════════════════════════════════
+   APP SHELL — single source of color truth for every screen
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* Layer A: Base background */
+  --app-bg-base: #0D0F12;
+  /* Color blooms — extremely subtle accent presence */
+  --app-bg-bloom:
+    radial-gradient(ellipse 80% 55% at 50% 0%,
+      rgba(255,140,66,0.045) 0%, transparent 65%),
+    radial-gradient(ellipse 55% 45% at 92% 100%,
+      rgba(58,190,255,0.028) 0%, transparent 55%);
+  /* Edge vignette — calms peripheral vision */
+  --app-bg-vignette:
+    radial-gradient(ellipse 100% 90% at 50% 50%,
+      transparent 42%, rgba(0,0,0,0.48) 100%);
+  /* Film grain — shared texture (identical SVG on every page) */
+  --app-bg-noise: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Cfilter id="n"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4"/%3E%3C/filter%3E%3Crect width="200" height="200" filter="url(%23n)" opacity="0.02"/%3E%3C/svg%3E');
+
+  /* Elevation ladder: same hue bias, same transparency philosophy */
+  --app-surface-0:     rgba(255,255,255,0.018); /* background containers */
+  --app-surface-1:     rgba(255,255,255,0.048); /* normal cards */
+  --app-surface-2:     rgba(255,255,255,0.082); /* emphasized / active panels */
+  --app-surface-inset: rgba(0,0,0,0.28);        /* pressed / inset inputs */
+
+  /* Border system: structural stroke + reflective edge highlight */
+  --app-border:           rgba(255,255,255,0.07);  /* subtle stroke — always visible */
+  --app-border-subtle:    rgba(255,255,255,0.035); /* very faint divider */
+  --app-border-highlight: rgba(255,255,255,0.18);  /* glass catch — top/left edge */
+  --app-border-active:    rgba(255,255,255,0.14);  /* hover / focus state */
+
+  /* Typography ramp — identical color values on every page */
+  --app-text-1: rgba(255,255,255,0.95); /* primary */
+  --app-text-2: rgba(255,255,255,0.60); /* secondary */
+  --app-text-3: rgba(255,255,255,0.38); /* hints / labels */
+
+  /* Accent palette — same saturation across the app */
+  --app-accent:  #FF8C42; /* orange — primary interactive */
+  --app-success: #19C37D; /* green  — positive / active */
+  --app-danger:  #FF4D4F; /* red    — error / alert */
+  --app-warning: #FFB84D; /* amber  — caution */
+  --app-cyan:    #3ABEFF; /* cyan   — info / secondary interactive */
+
+  /* Shadows */
+  --app-shadow-sm: 0 2px  8px  rgba(0,0,0,0.40);
+  --app-shadow-md: 0 4px  20px rgba(0,0,0,0.55);
+  --app-shadow-lg: 0 8px  40px rgba(0,0,0,0.70);
+  /* App Header — dimension tokens locked across every page */
+  --app-header-height:    56px;
+  --app-header-pad-h:     16px;
+  --app-header-gap:        8px;
+  --app-nav-btn-height:   32px;
+  --app-nav-radius:        8px;
+  --app-nav-btn-radius:    6px;
+}
+
 html {
 	touch-action: manipulation;
 }
@@ -5,8 +61,8 @@ body {
   font-family: Verdana, sans-serif;
   font-size: 1rem;
   text-align: center;
-  background: #222;
-  color: #fff;
+  background-color: var(--app-bg-base);
+  color: var(--app-text-1);
   line-height: 200%;
   margin: 0;
 }
@@ -24,10 +80,10 @@ a, a:hover {
   text-decoration: none;
 }
 button, .btn {
-  background: #333;
-  color: #fff;
+  background: var(--app-surface-1, #333);
+  color: var(--app-text-1, #fff);
   font-family: Verdana, sans-serif;
-  border: 0.3ch solid #333;
+  border: 0.3ch solid var(--app-border, #333);
 	border-radius: 24px;
   display: inline-block;
   font-size: 20px;
@@ -46,8 +102,8 @@ button.sml {
   margin: 0 0 0 10px;
 }
 button:hover, .btn:hover{
-  background:#555;
-  border-color:#555;
+  background: var(--app-surface-2, #555);
+  border-color: var(--app-border-active, #555);
 }
 
 #scan {
@@ -56,7 +112,7 @@ button:hover, .btn:hover{
 .toprow {
   top: 0;
   position: sticky;
-  background-color:#222;
+  background-color: var(--app-bg-base, #222);
   z-index:1;
 }
 .lnk {
@@ -77,10 +133,10 @@ button:hover, .btn:hover{
   color: #fa0;
 }
 input {
-  background: #333;
-  color: #fff;
+  background: var(--app-surface-inset, #333);
+  color: var(--app-text-1, #fff);
   font-family: Verdana, sans-serif;
-  border: 0.5ch solid #333;
+  border: 0.5ch solid var(--app-border, #333);
 }
 input:disabled {
   color: #888;
@@ -128,10 +184,10 @@ input[type=file] {
 }
 select {
   margin: 2px;
-  background: #333;
-  color: #fff;
+  background: var(--app-surface-inset, #333);
+  color: var(--app-text-1, #fff);
   font-family: Verdana, sans-serif;
-  border: 0.5ch solid #333;
+  border: 0.5ch solid var(--app-border, #333);
 }
 select.pin {
   max-width: 120px;
@@ -160,10 +216,11 @@ td {
 
 #toast {
 	opacity: 0;
-	background-color: #444;
+	background-color: var(--app-surface-2, #444);
+	border: 1px solid var(--app-border, rgba(255,255,255,0.07));
 	border-radius: 5px;
 	bottom: 64px;
-	color: #fff;
+	color: var(--app-text-1, #fff);
 	font-size: 17px;
 	padding: 16px;
 	pointer-events: none;
@@ -177,13 +234,15 @@ td {
 
 #toast.show {
 	opacity: 1;
-	background-color: #264;
+	background-color: rgba(25,195,125,0.20);
+	border-color: rgba(25,195,125,0.35);
 	animation: fadein 0.5s, fadein 0.5s 2.5s reverse;
 }
 
 #toast.error {
 	opacity: 1;
-	background-color: #b21;
+	background-color: rgba(255,77,79,0.20);
+	border-color: rgba(255,77,79,0.35);
 	animation: fadein 0.5s;
 }
 
@@ -211,4 +270,224 @@ td {
   #btns select {
     width: 144px;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SHARED APP HEADER — 3-zone grid used on every page
+   Style tokens come from :root above. This block lives in
+   style.css so it’s available to every page that loads it.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* 3-zone grid — Zone A | Zone B | Zone C */
+.app-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  height: var(--app-header-height, 56px);
+  padding: 0 var(--app-header-pad-h, 16px);
+  gap: var(--app-header-gap, 8px);
+  flex-shrink: 0;
+  /* Progressive enhancement: opaque base, blur when supported */
+  background: rgba(13,15,18,0.92);
+  border-bottom: 1px solid var(--app-border-subtle, rgba(255,255,255,0.035));
+}
+@supports (backdrop-filter: blur(1px)) {
+  .app-header {
+    background: rgba(13,15,18,0.88);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+}
+
+/* Fixed positioning for app-namespaced pages */
+.app .app-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 1000;
+  box-sizing: border-box;
+}
+/* Kill default h*/p/button vertical margins inside the header — prevents block-level
+   elements from pushing the 56px contract open from the inside */
+.app .app-header * {
+  margin-block: 0;
+}
+/* Universal content offset — every page's main content stays below the locked header */
+.app-page {
+  padding-top: var(--app-header-height, 56px);
+}
+
+/* Zone A: title + status pill */
+.app-header-zone-a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.app-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--app-text-1, rgba(255,255,255,0.95));
+  white-space: nowrap;
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+/* Title button — acts as dropdown trigger; invisible affordance on desktop */
+.app-title-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+}
+.app-title-caret {
+  font-size: 10px;
+  color: var(--app-text-3, rgba(255,255,255,0.38));
+  transition: transform 160ms ease;
+  line-height: 1;
+}
+.app-title-trigger[aria-expanded="true"] .app-title-caret {
+  transform: rotate(180deg);
+}
+
+/* Zone B: one-line contextual info readout */
+.app-info-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  white-space: nowrap;
+  gap: 0;
+  min-width: 0;
+}
+.app-info-chip {
+  font-size: 11px;
+  color: var(--app-text-3, rgba(255,255,255,0.38));
+  padding: 0 9px;
+  position: relative;
+  white-space: nowrap;
+}
+.app-info-chip + .app-info-chip::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  transform: translateX(-50%);
+  color: var(--app-border, rgba(255,255,255,0.07));
+}
+.app-info-chip.lit    { color: var(--app-text-2, rgba(255,255,255,0.60)); }
+.app-info-chip.accent { color: var(--app-accent, #FF8C42); }
+
+/* Zone C: navigation pill cluster */
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--app-surface-0, rgba(255,255,255,0.018));
+  padding: 4px;
+  border-radius: var(--app-nav-radius, 8px);
+  border: 1px solid var(--app-border, rgba(255,255,255,0.07));
+  flex-shrink: 0;
+}
+.app-nav-btn {
+  height: var(--app-nav-btn-height, 32px);
+  padding: 0 12px;
+  border-radius: var(--app-nav-btn-radius, 6px);
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--app-text-2, rgba(255,255,255,0.60));
+  font-size: 12px;
+  font-weight: 500;
+  font-family: Verdana, sans-serif;
+  transition: background 120ms, color 120ms;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  line-height: 1;
+  margin: 0;
+}
+.app-nav-btn:hover {
+  background: var(--app-surface-1, rgba(255,255,255,0.048));
+  color: var(--app-text-1, rgba(255,255,255,0.95));
+}
+.app-nav-btn:active { transform: scale(0.97); }
+.app-nav-btn.current {
+  background: var(--app-surface-2, rgba(255,255,255,0.082));
+  color: var(--app-text-1, rgba(255,255,255,0.95));
+}
+
+/* Mobile navigation sheet — position:fixed escapes any overflow:hidden parent */
+.app-nav-sheet {
+  position: fixed;
+  top: var(--app-header-height, 56px);
+  left: 0;
+  right: 0;
+  background: rgba(13,15,18,0.97);
+  border-bottom: 1px solid var(--app-border, rgba(255,255,255,0.07));
+  border-top: 1px solid var(--app-border-highlight, rgba(255,255,255,0.18));
+  z-index: 200;
+  padding: 6px 0;
+  transform: translateY(-8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+@supports (backdrop-filter: blur(1px)) {
+  .app-nav-sheet {
+    background: rgba(13,15,18,0.96);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+}
+.app-nav-sheet.open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.app-nav-sheet-item {
+  display: flex;
+  align-items: center;
+  padding: 13px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--app-text-2, rgba(255,255,255,0.60));
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+  gap: 10px;
+  text-decoration: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.app-nav-sheet-item:hover,
+.app-nav-sheet-item:active {
+  background: var(--app-surface-1, rgba(255,255,255,0.048));
+  color: var(--app-text-1, rgba(255,255,255,0.95));
+}
+.app-nav-sheet-item.current {
+  color: var(--app-accent, #FF8C42);
+}
+.app-nav-sheet-item.current::after {
+  content: '\2713';
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* Unified breakpoint — 900px collapses center+right on every page */
+@media (max-width: 900px) {
+  .app-info-bar { display: none !important; }
+  .app-nav      { display: none !important; }
+}
+
+/* Respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .app-nav-sheet          { transition: opacity 80ms linear; transform: none !important; }
+  .app-title-caret        { transition: none; }
 }

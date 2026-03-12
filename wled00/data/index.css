@@ -26,10 +26,10 @@
 	--c-tba: rgba(102, 102, 102, var(--t-b));
 	--c-tbh: rgba(51, 51, 51, var(--t-b));
 	/*following are internal*/
-	--th: 70px;
-	--tp: 70px;
+	--th: var(--app-header-height, 56px);
+	--tp: var(--app-header-height, 56px);
 	--bh: 63px;
-	--tbp: 14px 14px 10px 14px;
+	--tbp: 7px 14px 7px 14px;
 	--bbp: 9px 0 7px 0;
 	--bhd: none;
 	--sgp: "block";
@@ -119,8 +119,22 @@ button {
 	top: 0;
 	left: 0;
 	right: 0;
-	background: var(--c-tb);
+	min-height: var(--app-header-height, 56px);
+	background: var(--c-o);
 	z-index: 1;
+	overflow: visible;
+}
+/* Bleed: thin slab that paints the header colour over any glow/outline below */
+.wrapper::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: -4px;
+	height: 4px;
+	background: var(--c-o);
+	border-bottom: 1px solid rgba(255,255,255,0.06);
+	pointer-events: none;
 }
 
 .icons {
@@ -277,6 +291,7 @@ button {
 .tab {
 	background-color: transparent;
 	color: var(--c-d);
+	overflow: visible;
 }
 
 .bot {
@@ -1632,3 +1647,46 @@ dialog {
 		overflow-x: clip;
 	}
 }
+
+/* ── Strip Layout Mapper ─────────────────────────────────────────────────── */
+#lmPanel {
+	margin: 8px 0 4px;
+	border: 1px solid var(--c-3);
+	border-radius: 5px;
+	overflow: hidden;
+}
+.lm-hdr {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	cursor: pointer;
+	background: var(--c-2);
+	user-select: none;
+}
+.lm-chk { margin: 0; flex-shrink: 0; padding-left: 30px; min-width: 105px; }
+.lm-res-lbl { flex: 1; text-align: right; font-size: 0.82em; white-space: nowrap; }
+.lm-res-lbl input[type=number] { width: 4em; padding: 2px 4px; font-size: 1em; }
+.lm-arr { transition: transform .2s; flex-shrink: 0; }
+.lm-arr.open { transform: rotate(180deg); }
+#lmBody { padding: 6px 8px 8px; }
+#lmCvs {
+	width: 100%;
+	aspect-ratio: 2.8 / 1;
+	display: block;
+	background: #0d1117;
+	border-radius: 4px;
+	cursor: crosshair;
+	touch-action: none;
+	box-sizing: border-box;
+	border: 1px solid var(--c-3);
+	margin: 4px 0;
+}
+#lmSel {
+	min-height: 1.1em;
+	font-size: 0.8em;
+	color: var(--c-6);
+	padding: 1px 4px 3px;
+}
+.lm-btns { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.lm-btns button { flex: 1 1 0; min-width: 0; font-size: 0.8em; padding: 4px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

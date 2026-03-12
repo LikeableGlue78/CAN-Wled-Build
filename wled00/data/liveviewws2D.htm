@@ -3,12 +3,18 @@
 <head>
 	<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 	<meta charset="utf-8">
-	<meta name="theme-color" content="#222222">
+	<meta name="theme-color" content="#0D0F12">
+	<link rel="stylesheet" href="style.css">
 	<title>WLED Live Preview</title>
 	<style>
 	body {
 		margin: 0;
+		background-color: var(--app-bg-base, #0D0F12);
+		background-image: var(--app-bg-bloom);
+		overflow: hidden;
 	}
+	/* canvas is transparent — app-bg-base shows through the margins */
+	#canv { display: block; }
 	</style>
 </head>
 <body>

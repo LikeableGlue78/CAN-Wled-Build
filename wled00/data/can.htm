@@ -17,23 +17,27 @@
 	<style>
 		@import url("style.css");
 		
-		/* === DESIGN SYSTEM === */
+		/* === DESIGN SYSTEM ═════════════════════════════════════
+		   Color aliases → App Shell tokens (defined in style.css)
+		   Only spacing / radius are local to this page.
+		   ══════════════════════════════════════════════ */
 		:root {
-			--can-bg: #0F1115;
-			--can-accent: #FF8C42;
-			--can-success: #19C37D;
-			--can-danger: #FF4D4F;
-			--can-warning: #FFB84D;
-			--can-cyan: #3ABEFF;
-			--can-purple: #A56EFF;
-			--can-text-1: rgba(255, 255, 255, 0.95);
-			--can-text-2: rgba(255, 255, 255, 0.6);
-			--can-text-3: rgba(255, 255, 255, 0.4);
-			--can-border: rgba(255, 255, 255, 0.06);
-			--can-border-subtle: rgba(255, 255, 255, 0.03);
-			--can-divider: rgba(255, 255, 255, 0.05);
-			--can-surface-primary: rgba(255, 255, 255, 0.045);
-			--can-surface-secondary: rgba(255, 255, 255, 0.025);
+			--can-bg:                var(--app-bg-base);
+			--can-accent:            var(--app-accent);
+			--can-success:           var(--app-success);
+			--can-danger:            var(--app-danger);
+			--can-warning:           var(--app-warning);
+			--can-cyan:              var(--app-cyan);
+			--can-purple:            #A56EFF;
+			--can-text-1:            var(--app-text-1);
+			--can-text-2:            var(--app-text-2);
+			--can-text-3:            var(--app-text-3);
+			--can-border:            var(--app-border);
+			--can-border-subtle:     var(--app-border-subtle);
+			--can-divider:           var(--app-border-subtle);
+			--can-surface-primary:   var(--app-surface-1);
+			--can-surface-secondary: var(--app-surface-0);
+			/* Spacing & radius — local layout tokens */
 			--spacing-1: 8px;
 			--spacing-2: 12px;
 			--spacing-3: 16px;
@@ -46,30 +50,39 @@
 		body {
 			margin: 0;
 			padding: 0;
-			background: var(--can-bg);
-		background-image: 
-			radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.015) 0%, transparent 50%),
-			url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Cfilter id="n"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4"/%3E%3C/filter%3E%3Crect width="200" height="200" filter="url(%23n)" opacity="0.02"/%3E%3C/svg%3E');
-		overflow-y: auto;
-		overflow-x: hidden;
-		animation: grain 8s steps(10) infinite;
-	}
-	
-	@keyframes grain {
-		0%, 100% { background-position: 0 0, 0 0; }
-		10% { background-position: 0 0, -5% -10%; }
-		20% { background-position: 0 0, -15% 5%; }
-		30% { background-position: 0 0, 7% -25%; }
-		40% { background-position: 0 0, -5% 25%; }
-		50% { background-position: 0 0, -15% -15%; }
-		60% { background-position: 0 0, 15% 10%; }
-		70% { background-position: 0 0, 0 15%; }
-		80% { background-position: 0 0, -10% -10%; }
-		90% { background-position: 0 0, 10% 5%; }
+			background-color: var(--can-bg);
+			background-image:
+				radial-gradient(ellipse 80% 55% at 50% 0%,
+					rgba(255,140,66,0.045) 0%, transparent 65%),
+				radial-gradient(ellipse 55% 45% at 92% 100%,
+					rgba(58,190,255,0.028) 0%, transparent 55%),
+				var(--app-bg-noise);
+			overflow: hidden;
+			height: 100vh;
+			animation: grain 8s steps(10) infinite;
+		}
+		@keyframes grain {
+			0%, 100% { background-position: 0 0, 0 0, 0 0; }
+			10% { background-position: 0 0, 0 0, -5% -10%; }
+			20% { background-position: 0 0, 0 0, -15% 5%; }
+			30% { background-position: 0 0, 0 0, 7% -25%; }
+			40% { background-position: 0 0, 0 0, -5% 25%; }
+			50% { background-position: 0 0, 0 0, -15% -15%; }
+			60% { background-position: 0 0, 0 0, 15% 10%; }
+			70% { background-position: 0 0, 0 0, 0 15%; }
+			80% { background-position: 0 0, 0 0, -10% -10%; }
+			90% { background-position: 0 0, 0 0, 10% 5%; }
+		}
+
+		.container {
+			height: 100vh;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
 			max-width: 1400px;
 			width: 100%;
 			margin: 0 auto;
-			padding: var(--spacing-4);
+			padding: var(--app-header-height) var(--spacing-3) var(--spacing-2);
 			box-sizing: border-box;
 		}
 		
@@ -160,53 +173,8 @@
 		}
 		
 		/* === HEADER === */
-		.can-header {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			margin-bottom: var(--spacing-4);
-			padding-bottom: var(--spacing-3);
-			border-bottom: 1px solid var(--can-divider);
-		}
-		
-		.header-left {
-			display: flex;
-			align-items: center;
-			gap: var(--spacing-3);
-		}
-		
-		.can-nav {
-			display: flex;
-			gap: var(--spacing-1);
-			background: var(--can-surface-secondary);
-			padding: 4px;
-			border-radius: var(--radius-md);
-			border: 1px solid var(--can-border);
-		}
-		
-		.can-nav button {
-			padding: 7px 12px;
-			border-radius: var(--radius-sm);
-			border: none;
-			cursor: pointer;
-			background: transparent;
-			color: var(--can-text-2);
-			font-size: 12px;
-			transition: all 120ms;
-			font-weight: 500;
-			display: inline-flex;
-			align-items: center;
-			gap: 5px;
-		}
-		
-		.can-nav button:hover {
-			background: rgba(255, 255, 255, 0.06);
-			color: var(--can-text-1);
-		}
-		
-		.can-nav button:active {
-			transform: scale(0.97);
-		}
+		/* Always show the caret on the CAN page */
+		.page-can .app-title-caret { display: inline; }
 		
 		/* === MAIN GRID === */
 		.main-grid {
@@ -215,6 +183,9 @@
 			gap: var(--spacing-3);
 			width: 100%;
 			min-width: 0;
+			flex: 1;
+			min-height: 0;
+			overflow: hidden;
 		}
 		
 		@media (min-width: 900px) {
@@ -227,15 +198,25 @@
 			order: 2;
 			min-width: 0;
 			overflow: hidden;
+			display: flex;
+			flex-direction: column;
+			min-height: 0;
 		}
 		
 		.sidebar {
 			display: flex;
 			flex-direction: column;
-			gap: var(--spacing-3);
+			gap: 0;
 			order: 1;
 			min-width: 0;
+			min-height: 0;
 			overflow: hidden;
+			border-radius: var(--radius-lg);
+			background: rgba(255,255,255,0.028);
+			border: 1px solid rgba(255,255,255,0.09);
+			box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 8px 32px rgba(0,0,0,0.35);
+			backdrop-filter: blur(14px);
+			-webkit-backdrop-filter: blur(14px);
 		}
 		
 		@media (min-width: 900px) {
@@ -255,15 +236,46 @@
 		}
 		
 		.card-primary {
-			background: var(--can-surface-primary);
-			border: 1px solid var(--can-border-subtle);
-			box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+			background: rgba(255,255,255,0.045);
+			border: 1px solid rgba(255,255,255,0.10);
+			box-shadow:
+				inset 0 1px 0 rgba(255,255,255,0.16),
+				0 8px 32px rgba(0,0,0,0.42),
+				0 2px 8px rgba(0,0,0,0.25);
+			backdrop-filter: blur(16px);
+			-webkit-backdrop-filter: blur(16px);
+			position: relative;
+			transition: border-color 200ms, box-shadow 200ms;
 		}
+
+		.card-primary::before {
+			content: '';
+			position: absolute;
+			top: 0; left: 20px; right: 20px; height: 2px;
+			background: linear-gradient(90deg, transparent 0%, rgba(255,140,66,0.55) 25%, rgba(58,190,255,0.50) 75%, transparent 100%);
+			pointer-events: none; z-index: 1; border-radius: inherit;
+		}
+
+		.card-primary::after {
+			content: '';
+			position: absolute; inset: 0;
+			background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.028), transparent 58%);
+			border-radius: inherit;
+			pointer-events: none; opacity: 0; transition: opacity 300ms;
+		}
+
+		.card-primary:hover::after { opacity: 1; }
+		.card-primary:hover { border-color: rgba(255,255,255,0.16); }
 		
 		.card-secondary {
-			background: var(--can-surface-secondary);
-			border: 1px solid var(--can-border);
-			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+			background: rgba(255,255,255,0.026);
+			border: 1px solid rgba(255,255,255,0.07);
+			box-shadow:
+				inset 0 1px 0 rgba(255,255,255,0.10),
+				0 4px 16px rgba(0,0,0,0.28);
+			backdrop-filter: blur(8px);
+			-webkit-backdrop-filter: blur(8px);
+			position: relative;
 		}
 		
 		.card-header {
@@ -425,6 +437,7 @@
 		
 		.reactive-btn {
 			flex: 1;
+			min-width: 56px;
 			padding: 8px 12px;
 			border-radius: var(--radius-sm);
 			border: none;
@@ -433,19 +446,44 @@
 			cursor: pointer;
 			font-size: 12px;
 			font-weight: 500;
-			transition: all 120ms;
+			transition: all 140ms;
 			text-align: center;
 		}
 		
 		.reactive-btn:hover {
-			background: rgba(255, 255, 255, 0.03);
+			background: rgba(255, 255, 255, 0.06);
 			color: var(--can-text-1);
+			transform: translateY(-1px);
 		}
 		
 		.reactive-btn.active {
 			background: var(--can-accent);
 			color: white;
-			box-shadow: 0 2px 6px rgba(255, 140, 66, 0.25);
+			box-shadow: 0 3px 10px rgba(255,140,66,0.35), inset 0 1px 0 rgba(255,255,255,0.14);
+		}
+		
+		/* === SMALL TEST BUTTONS === */
+		.btn-can-sm {
+			padding: 3px 8px;
+			border-radius: 4px;
+			border: 1px solid var(--can-border);
+			background: rgba(255, 255, 255, 0.03);
+			color: var(--can-text-2);
+			cursor: pointer;
+			font-size: 9px;
+			font-weight: 500;
+			transition: all 120ms;
+			font-family: monospace;
+		}
+		
+		.btn-can-sm:hover {
+			background: var(--can-accent);
+			color: white;
+			border-color: var(--can-accent);
+		}
+		
+		.btn-can-sm:active {
+			transform: scale(0.95);
 		}
 		
 		.reactive-btn:active {
@@ -461,7 +499,25 @@
 			color: var(--can-text-3);
 			line-height: 1.5;
 		}
-		
+
+		/* === SPARK BARS (telemetry mini progress) === */
+		.spark-bar-wrap {
+			height: 3px;
+			background: rgba(255, 255, 255, 0.06);
+			border-radius: 2px;
+			overflow: hidden;
+			margin: 5px 0 3px;
+		}
+		.spark-bar {
+			height: 100%;
+			border-radius: 2px;
+			transition: width 0.4s ease;
+			width: 0%;
+		}
+		.spark-rpm      { background: linear-gradient(90deg, rgba(255,140,66,0.7), var(--can-accent)); }
+		.spark-speed    { background: linear-gradient(90deg, rgba(30,160,220,0.8), var(--can-cyan)); }
+		.spark-throttle { background: linear-gradient(90deg, rgba(20,170,100,0.8), var(--can-success)); }
+
 		/* === TOOLBAR === */
 		.toolbar {
 			display: flex;
@@ -507,6 +563,36 @@
 		
 		.tool-btn.pressed {
 			background: rgba(255, 255, 255, 0.08);
+		}
+
+		.toolbar-sep {
+			width: 1px;
+			height: 20px;
+			background: var(--can-border);
+			margin: 0 4px;
+			flex-shrink: 0;
+			align-self: center;
+		}
+
+		.tool-btn.engine-on {
+			border-color: var(--can-success);
+			color: var(--can-success);
+			background: rgba(25, 195, 125, 0.08);
+			box-shadow: 0 0 0 1px rgba(25,195,125,0.10), 0 2px 8px rgba(25,195,125,0.14);
+		}
+		.tool-btn.engine-on:hover {
+			background: rgba(25, 195, 125, 0.15);
+			box-shadow: 0 0 0 1px rgba(25,195,125,0.20), 0 2px 12px rgba(25,195,125,0.25);
+		}
+		.tool-btn.engine-off {
+			border-color: var(--can-danger);
+			color: var(--can-danger);
+			background: rgba(255, 75, 75, 0.08);
+			box-shadow: 0 0 0 1px rgba(255,75,75,0.10), 0 2px 8px rgba(255,75,75,0.14);
+		}
+		.tool-btn.engine-off:hover {
+			background: rgba(255, 75, 75, 0.15);
+			box-shadow: 0 0 0 1px rgba(255,75,75,0.20), 0 2px 12px rgba(255,75,75,0.25);
 		}
 		
 		.poll-dropdown {
@@ -565,10 +651,88 @@
 			text-align: center;
 		}
 		
+		.selection-indicator {
+			display: none;
+			padding: 10px var(--spacing-3);
+			background: rgba(77, 166, 255, 0.12);
+			border-bottom: 1px solid rgba(77, 166, 255, 0.3);
+			color: var(--can-cyan);
+			font-size: 12px;
+			text-align: center;
+			font-weight: 500;
+		}
+		
+		.stat-item.selectable {
+			cursor: pointer;
+			transition: all 150ms;
+			position: relative;
+		}
+		
+		.stat-item.selectable:hover {
+			background: rgba(77, 166, 255, 0.1) !important;
+			transform: translateY(-1px);
+		}
+		
+		.stat-item.selecting {
+			background: rgba(77, 166, 255, 0.15) !important;
+			border: 2px solid var(--can-cyan) !important;
+			box-shadow: 0 0 12px rgba(77, 166, 255, 0.3);
+		}
+		
+		#canFramesTable tbody tr.clickable-row {
+			cursor: pointer;
+			transition: all 100ms;
+		}
+		
+		#canFramesTable tbody tr.clickable-row:hover {
+			background: rgba(77, 166, 255, 0.1) !important;
+			transform: translateX(2px);
+		}
+		
+		/* Individual assignment colors */
+		#canFramesTable tbody tr.assigned-rpm {
+			background: rgba(255, 184, 77, 0.08) !important;
+		}
+		
+		#canFramesTable tbody tr.assigned-speed {
+			background: rgba(77, 166, 255, 0.08) !important;
+		}
+		
+		#canFramesTable tbody tr.assigned-throttle {
+			background: rgba(104, 211, 145, 0.08) !important;
+		}
+		
+		/* Mixed assignment colors */
+		#canFramesTable tbody tr.assigned-rpm.assigned-speed {
+			background: linear-gradient(135deg, 
+				rgba(255, 184, 77, 0.12) 0%, 
+				rgba(77, 166, 255, 0.12) 100%) !important;
+		}
+		
+		#canFramesTable tbody tr.assigned-rpm.assigned-throttle {
+			background: linear-gradient(135deg, 
+				rgba(255, 184, 77, 0.12) 0%, 
+				rgba(104, 211, 145, 0.12) 100%) !important;
+		}
+		
+		#canFramesTable tbody tr.assigned-speed.assigned-throttle {
+			background: linear-gradient(135deg, 
+				rgba(77, 166, 255, 0.12) 0%, 
+				rgba(104, 211, 145, 0.12) 100%) !important;
+		}
+		
+		#canFramesTable tbody tr.assigned-rpm.assigned-speed.assigned-throttle {
+			background: linear-gradient(135deg, 
+				rgba(255, 184, 77, 0.15) 0%, 
+				rgba(77, 166, 255, 0.15) 50%, 
+				rgba(104, 211, 145, 0.15) 100%) !important;
+		}
+		
 		/* === FRAMES TABLE === */
 		.table-container {
 			overflow-x: auto;
-			max-height: 500px;
+			flex: 1;
+			min-height: 0;
 			overflow-y: auto;
 			position: relative;
 			background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.005) 1px, transparent 1px);
@@ -582,7 +746,9 @@
 		}
 		
 		#canFramesTable th {
-			background: var(--can-surface-secondary);
+			background: rgba(13,15,18,0.94);
+			backdrop-filter: blur(8px);
+			-webkit-backdrop-filter: blur(8px);
 			color: var(--can-text-2);
 			padding: 10px 12px;
 			text-align: left;
@@ -590,7 +756,7 @@
 			text-transform: uppercase;
 			letter-spacing: 0.6px;
 			font-weight: 600;
-			opacity: 0.7;
+			opacity: 0.88;
 			border-bottom: 1px solid var(--can-divider);
 			position: sticky;
 			top: 0;
@@ -611,11 +777,12 @@
 		}
 		
 		#canFramesTable tbody tr.flash-in {
-			animation: rowFlash 350ms ease-out;
+			animation: rowFlash 550ms ease-out;
 		}
 		
 		@keyframes rowFlash {
-			0% { background: rgba(58, 190, 255, 0.12); }
+			0%   { background: rgba(58, 190, 255, 0.18); }
+			40%  { background: rgba(58, 190, 255, 0.10); }
 			100% { background: transparent; }
 		}
 		
@@ -730,7 +897,37 @@
 			0%, 50% { opacity: 1; }
 			51%, 100% { opacity: 0.3; }
 		}
-		
+
+		/* Merged status row overrides */
+		.health-strip.status-row {
+			padding: 0;
+			gap: 0;
+			align-items: stretch;
+		}
+		.status-row-left {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			padding: 6px 12px;
+			flex-shrink: 0;
+			border-right: 1px solid var(--can-divider);
+			font-size: 11px;
+			white-space: nowrap;
+		}
+		.status-row-sep {
+			width: 1px;
+			height: 14px;
+			background: var(--can-border);
+			margin: 0 4px;
+		}
+		.signal-presence.signal-inline {
+			border-bottom: none !important;
+			background: none !important;
+			flex: 1;
+			padding: 6px 10px;
+			min-height: 0;
+		}
+
 		/* === TRAFFIC RATE === */
 		.traffic-rate {
 			font-size: 11px;
@@ -747,10 +944,13 @@
 			background: rgba(255, 255, 255, 0.015);
 			border-bottom: 1px solid var(--can-divider);
 			display: flex;
-			flex-wrap: wrap;
+			flex-wrap: nowrap;
 			gap: 6px;
 			min-height: 40px;
 			align-items: center;
+			overflow-x: auto;
+			scrollbar-width: none;
+			-webkit-overflow-scrolling: touch;
 		}
 		
 		.signal-label {
@@ -775,8 +975,10 @@
 		}
 		
 		.signal-chip:hover {
-			background: rgba(58, 190, 255, 0.15);
-			border-color: rgba(58, 190, 255, 0.4);
+			background: rgba(58, 190, 255, 0.18);
+			border-color: rgba(58, 190, 255, 0.45);
+			transform: translateY(-1px);
+			filter: brightness(1.15);
 		}
 		
 		.signal-chip.ext {
@@ -808,7 +1010,9 @@
 			display: flex;
 			align-items: center;
 			gap: var(--spacing-2);
-			flex-wrap: wrap;
+			flex-wrap: nowrap;
+			overflow-x: auto;
+			scrollbar-width: none;
 		}
 		
 		.filter-input {
@@ -819,7 +1023,8 @@
 			color: var(--can-text-1);
 			font-size: 11px;
 			font-family: 'Courier New', Courier, monospace;
-			width: 120px;
+			flex: 1;
+			min-width: 80px;
 			transition: all 120ms;
 		}
 		
@@ -917,39 +1122,130 @@
 			100% { width: 0%; }
 		}
 		
+		/* === SIDEBAR TABS === */
+		.sidebar-tabs {
+			display: flex;
+			flex-shrink: 0;
+			border-bottom: 1px solid var(--can-divider);
+			background: rgba(0,0,0,0.15);
+			border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+			overflow: hidden;
+		}
+
+		.sidebar-tab {
+			flex: 1;
+			padding: 0 6px;
+			height: 36px;
+			border: none;
+			border-bottom: 2px solid transparent;
+			background: transparent;
+			color: var(--can-text-3);
+			font-size: 10px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			cursor: pointer;
+			transition: color 120ms, border-color 150ms, background 120ms;
+		}
+
+		.sidebar-tab:hover {
+			color: var(--can-text-1);
+			background: rgba(255,255,255,0.03);
+		}
+
+		.sidebar-tab.active {
+			color: var(--can-text-1);
+			border-bottom-color: var(--can-accent);
+			background: rgba(255,140,66,0.07);
+		}
+
+		.tab-panel {
+			display: none;
+			flex-direction: column;
+			overflow-y: auto;
+			flex: 1;
+			min-height: 0;
+		}
+
+		.tab-panel.active {
+			display: flex;
+		}
+
+		/* === PANEL SECTIONS (replace card-section inside tabs) === */
+		.panel-section {
+			padding: var(--spacing-3);
+			border-bottom: 1px solid var(--can-divider);
+			flex-shrink: 0;
+		}
+
+		.panel-section:last-child { border-bottom: none; }
+
+		.panel-section-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: var(--spacing-2);
+		}
+
+		.panel-section-title {
+			font-size: 10px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.6px;
+			color: var(--can-text-2);
+			opacity: 0.7;
+		}
+
+		/* === DIAG ID BADGES === */
+		.diag-meta {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			margin-top: 4px;
+		}
+
+		.diag-id-badge {
+			font-family: 'Courier New', monospace;
+			font-size: 10px;
+			padding: 1px 6px;
+			border-radius: 4px;
+			font-weight: 600;
+		}
+
+		.rpm-badge    { background: rgba(255,184,77,0.14); border: 1px solid rgba(255,184,77,0.35); color: var(--can-accent); }
+		.speed-badge  { background: rgba(58,190,255,0.14); border: 1px solid rgba(58,190,255,0.35); color: var(--can-cyan); }
+		.throttle-badge { background: rgba(25,195,125,0.14); border: 1px solid rgba(25,195,125,0.35); color: var(--can-success); }
+
+		/* Selectable stat items inside telemetry panel */
+		#panel-telemetry .stat-item.selectable {
+			padding: var(--spacing-2);
+			background: rgba(255,255,255,0.022);
+			border-radius: var(--radius-md);
+			border: 1px solid rgba(255,255,255,0.06);
+			transition: all 150ms;
+			cursor: pointer;
+		}
+
+		#panel-telemetry .stat-item.selectable:hover {
+			border-color: rgba(255,255,255,0.14);
+			background: rgba(255,255,255,0.04);
+		}
+
+		#panel-telemetry .stat-item.selecting {
+			border-color: var(--can-cyan) !important;
+			box-shadow: 0 0 12px rgba(58,190,255,0.22);
+			background: rgba(58,190,255,0.06) !important;
+		}
+
 		/* === RESPONSIVE === */
 		@media (max-width: 900px) {
-			.container {
-				padding: var(--spacing-2);
-			}
-			
-			.can-header {
-				flex-direction: column;
-				align-items: flex-start;
-				gap: var(--spacing-2);
-			}
-			
-			.header-left {
-				flex-direction: column;
-				align-items: flex-start;
-				gap: var(--spacing-2);
-			}
-			
-			.page-title {
-				font-size: 20px;
-			}
-			
-			.stats-grid {
-				grid-template-columns: repeat(2, 1fr);
-			}
-			
-			.can-nav {
-				width: 100%;
-			}
-			
-			.can-nav button {
-				flex: 1;
-			}
+			body { overflow-y: auto !important; height: auto !important; }
+			.container { height: auto !important; overflow: visible !important; padding: var(--spacing-2); }
+			.main-grid { overflow: visible !important; min-height: auto !important; }
+			.frames-card { height: auto !important; min-height: auto !important; }
+			.table-container { flex: none !important; max-height: 400px; }
+			.sidebar { height: auto !important; overflow-y: visible !important; max-height: none; border-radius: var(--radius-lg); margin-top: var(--spacing-3); }
+			.stats-grid { grid-template-columns: repeat(2, 1fr); }
 		}
 		
 		@media (max-width: 600px) {
@@ -971,22 +1267,355 @@
 				flex-wrap: wrap;
 			}
 		}
+
+		/* === LED STRIP VIEWER === */
+		.strip-viewer {
+			border-bottom: 1px solid var(--can-divider);
+			background: var(--app-bg-base);
+		}
+		.strip-viewer-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 8px 16px 7px;
+			background: var(--app-surface-0);
+			border-bottom: 1px solid var(--app-border-subtle);
+			gap: 12px;
+			flex-wrap: wrap;
+		}
+		.strip-meta-row {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			min-width: 0;
+		}
+		.strip-live-pill {
+			display: inline-flex;
+			align-items: center;
+			gap: 5px;
+			padding: 3px 10px;
+			background: var(--app-surface-0);
+			border: 1px solid var(--app-border);
+			border-radius: 20px;
+			font-size: 9px;
+			font-weight: 700;
+			letter-spacing: 1.2px;
+			color: rgba(255,255,255,0.4);
+			text-transform: uppercase;
+			flex-shrink: 0;
+		}
+		.strip-live-dot {
+			width: 5px;
+			height: 5px;
+			border-radius: 50%;
+			background: rgba(255,255,255,0.2);
+			transition: background 400ms, box-shadow 400ms;
+		}
+		.strip-live-dot.active {
+			background: var(--can-success);
+			box-shadow: 0 0 6px var(--can-success), 0 0 14px rgba(25,195,125,0.35);
+			animation: pulse-dot 1.8s ease-in-out infinite;
+		}
+		.strip-fx-label {
+			font-family: 'Courier New', monospace;
+			font-size: 12px;
+			color: var(--can-text-2);
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			max-width: 240px;
+		}
+		.strip-stats-row {
+			display: flex;
+			gap: 16px;
+			font-family: 'Courier New', monospace;
+			font-size: 10px;
+			color: var(--can-text-3);
+			align-items: center;
+			flex-shrink: 0;
+		}
+		.strip-stat {
+			display: flex;
+			align-items: baseline;
+			gap: 4px;
+		}
+		.strip-stat-label {
+			font-size: 9px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			opacity: 0.45;
+		}
+		.strip-stat-val {
+			color: var(--can-text-2);
+			font-weight: 500;
+		}
+		.led-strip-wrapper {
+			position: relative;
+			width: 100%;
+			height: 72px;
+			background: #000204;
+			overflow: hidden;
+			cursor: crosshair;
+		}
+		.led-strip-wrapper::before {
+			content: '';
+			position: absolute;
+			inset: 0;
+			background: linear-gradient(to bottom,
+				rgba(0,2,4,0.50) 0%,
+				rgba(0,2,4,0.0) 18%,
+				rgba(0,2,4,0.0) 82%,
+				rgba(0,2,4,0.50) 100%);
+			z-index: 6;
+			pointer-events: none;
+		}
+		.led-strip-wrapper::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			background: linear-gradient(to right,
+				rgba(0,2,4,0.38) 0%,
+				rgba(0,2,4,0.0) 2.5%,
+				rgba(0,2,4,0.0) 97.5%,
+				rgba(0,2,4,0.38) 100%);
+			z-index: 6;
+			pointer-events: none;
+		}
+		/* Wide diffuse bloom — centered so blur spreads evenly above & below */
+		#peekGlowCanvas {
+			position: absolute;
+			left: 0;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 100%;
+			height: 44px;
+			image-rendering: auto;
+			filter: blur(28px) brightness(5.5) saturate(2.8);
+			opacity: 0.78;
+			mix-blend-mode: screen;
+			z-index: 1;
+		}
+		/* Medium corona — centered, 16px tall */
+		#peekGlowCanvas2 {
+			position: absolute;
+			left: 0;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 100%;
+			height: 16px;
+			image-rendering: auto;
+			filter: blur(7px) brightness(4.5) saturate(2.3);
+			opacity: 0.92;
+			mix-blend-mode: screen;
+			z-index: 2;
+		}
+		/* Sharp color bar — 6px slim centered strip, screen so dark=invisible */
+		#peekCanvas {
+			position: absolute;
+			left: 0;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 100%;
+			height: 6px;
+			image-rendering: pixelated;
+			filter: brightness(1.75) contrast(1.1) saturate(1.45);
+			mix-blend-mode: screen;
+			z-index: 3;
+		}
+		/* Hot white core — 3px near-white center line, screen so dark=invisible */
+		#peekCoreCanvas {
+			position: absolute;
+			left: 0;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 100%;
+			height: 3px;
+			image-rendering: pixelated;
+			filter: brightness(3.2) saturate(0.4);
+			mix-blend-mode: screen;
+			z-index: 4;
+		}
+		.strip-crosshair {
+			position: absolute;
+			top: 0;
+			width: 1px;
+			height: 100%;
+			background: rgba(255,255,255,0.4);
+			box-shadow: 0 0 6px rgba(255,255,255,0.25);
+			z-index: 8;
+			pointer-events: none;
+			display: none;
+		}
+		.strip-tooltip {
+			position: absolute;
+			top: 4px;
+			transform: translateX(-50%);
+			background: rgba(8,10,14,0.96);
+			border: 1px solid rgba(255,255,255,0.1);
+			border-radius: 4px;
+			padding: 3px 8px;
+			font-family: 'Courier New', monospace;
+			font-size: 10px;
+			color: var(--can-text-1);
+			white-space: nowrap;
+			z-index: 9;
+			pointer-events: none;
+			display: none;
+		}
+		.strip-ruler-row {
+			display: flex;
+			justify-content: space-between;
+			padding: 5px 16px 6px;
+			background: rgba(255,255,255,0.008);
+			border-top: 1px solid rgba(255,255,255,0.025);
+		}
+		.strip-ruler-mark {
+			font-family: 'Courier New', monospace;
+			font-size: 9px;
+			color: rgba(255,255,255,0.22);
+			line-height: 1;
+		}
+
+		/* === HEADER ACTION BUTTONS (Zone A) === */
+		.hdr-actions {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			margin-left: 10px;
+		}
+		.hdr-action-btn {
+			width: 32px;
+			height: 32px;
+			border-radius: var(--radius-sm);
+			border: 1px solid var(--can-border);
+			background: transparent;
+			color: var(--can-text-2);
+			font-size: 15px;
+			cursor: pointer;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			transition: background 120ms, color 120ms, box-shadow 120ms;
+			padding: 0;
+		}
+		.hdr-action-btn:hover {
+			background: var(--app-surface-1);
+			color: var(--can-text-1);
+		}
+		.hdr-action-btn.engine-on {
+			border-color: var(--can-success);
+			color: var(--can-success);
+			box-shadow: 0 0 8px rgba(25,195,125,0.25);
+		}
+		.hdr-action-btn.engine-off {
+			border-color: var(--can-danger);
+			color: var(--can-danger);
+		}
+		.hdr-action-btn.paused {
+			border-color: var(--can-accent);
+			color: var(--can-accent);
+		}
+
+		/* === MOBILE BOTTOM BAR === */
+		:root { --bh: 60px; }
+		.can-bot {
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			height: var(--bh);
+			display: none;
+			background: rgba(13,15,18,0.97);
+			backdrop-filter: blur(14px);
+			-webkit-backdrop-filter: blur(14px);
+			border-top: 1px solid var(--app-border, rgba(255,255,255,0.08));
+			z-index: 1000;
+		}
+		.can-bot-btn {
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 3px;
+			border: none;
+			border-top: 2px solid transparent;
+			background: transparent;
+			color: var(--can-text-3);
+			font-size: 18px;
+			cursor: pointer;
+			transition: color 120ms, border-color 120ms, background 120ms;
+			padding: 6px 0 4px;
+			min-width: 0;
+		}
+		.can-bot-btn .tab-label {
+			font-size: 10px;
+			font-weight: 600;
+			letter-spacing: 0.04em;
+			text-transform: uppercase;
+		}
+		.can-bot-btn.active {
+			color: var(--can-accent);
+			border-top-color: var(--can-accent);
+			background: rgba(255,140,66,0.06);
+		}
+		@media (max-width: 900px) {
+			.can-bot { display: flex; }
+			.container { padding-bottom: calc(var(--bh) + var(--spacing-2)); }
+		}
+		@media (max-width: 600px) {
+			.can-bot-btn .tab-label { font-size: 9px; }
+		}
 	</style>
 </head>
-<body>
+<body class="app page-can">
+
+<!-- Mobile page navigation sheet (position:fixed, escapes .container overflow:hidden) -->
+<div class="app-nav-sheet" id="navSheet"
+	role="dialog" aria-modal="true" aria-labelledby="titleTrigger">
+	<a class="app-nav-sheet-item" tabindex="-1"
+		onclick="closeNavSheet();window.location=getURL('/')">&#x2302; Home</a>
+	<a class="app-nav-sheet-item" tabindex="-1"
+		onclick="closeNavSheet();window.location=getURL('/#Colors')">&#x25A0; Colors</a>
+	<a class="app-nav-sheet-item" tabindex="-1"
+		onclick="closeNavSheet();window.location=getURL('/settings')">&#x2699; Settings</a>
+	<a class="app-nav-sheet-item current" tabindex="-1"
+		aria-current="page">&#x2609; CAN Monitor</a>
+</div>
 
 <div class="container">
-	<!-- Header -->
-	<header class="can-header">
-		<div class="header-left">
-			<h1 class="page-title">
-				CAN Bus Monitor
+	<!-- Header: 3-zone app shell grid (Zone A | Zone B | Zone C) -->
+	<header class="app-header">
+		<!-- Zone A: Page title + status pill -->
+		<div class="app-header-zone-a">
+			<button class="app-title-trigger" id="titleTrigger"
+				onclick="toggleNavSheet()" aria-expanded="false"
+				aria-controls="navSheet" aria-haspopup="dialog">
+				<span class="app-title">CAN Bus Monitor</span>
 				<span class="title-badge" id="headerBadge">OFFLINE</span>
-			</h1>
+				<span class="app-title-caret">&#x25BE;</span>
+			</button>
+			<!-- Quick-action shortcuts shown beside the title on all screen sizes -->
+			<div class="hdr-actions" id="hdrActions">
+				<button class="hdr-action-btn engine-on" id="hdrBtnEngine"
+					onclick="toggleEngine()" title="Toggle Engine">&#x1F511;</button>
+				<button class="hdr-action-btn" id="hdrBtnPause"
+					onclick="togglePause()" title="Pause / Resume">&#x23F8;&#xFE0F;</button>
+			</div>
 		</div>
-		<nav class="can-nav">
-			<button onclick="window.location=getURL('/')">Home</button>
-			<button onclick="window.location=getURL('/#Colors')">Colors</button>
+		<!-- Zone B: One-line contextual info readout -->
+		<div class="app-info-bar" id="headerInfoBar" aria-live="polite">
+			<span class="app-info-chip" id="infoTraffic">Silent</span>
+			<span class="app-info-chip" id="infoBitrate">&mdash;</span>
+			<span class="app-info-chip" id="infoMode">&mdash;</span>
+			<span class="app-info-chip" id="infoEngine">Engine off</span>
+			<span class="app-info-chip" id="infoFx">FX &mdash;</span>
+		</div>
+		<!-- Zone C: Navigation -->
+		<nav class="app-nav">
+			<button class="app-nav-btn" onclick="window.location=getURL('/')">&#x2302; Home</button>
+			<button class="app-nav-btn" onclick="window.location=getURL('/#Colors')">Colors</button>
+			<button class="app-nav-btn current">CAN</button>
 		</nav>
 	</header>
 	
@@ -1001,8 +1630,17 @@
 					<button class="tool-btn" onclick="copyFramesJSON()">📋 Copy</button>
 					<button class="tool-btn" id="btnCapture" onclick="toggleCapture()">⏺ Capture</button>
 				</div>
+				<span class="toolbar-sep"></span>
 				<div class="toolbar-group">
 					<span class="traffic-rate" id="trafficRate">0 fps</span>
+					<div class="poll-dropdown">
+						<button class="tool-btn" onclick="toggleSortMenu()">↕ <span id="sortLabel">ID</span> ▾</button>
+						<div id="sortMenu" class="poll-menu">
+							<div class="poll-option active" data-sort="id" onclick="selectSort('id')">Sort by ID</div>
+							<div class="poll-option" data-sort="time" onclick="selectSort('time')">Sort by Last Seen</div>
+							<div class="poll-option" data-sort="activity" onclick="selectSort('activity')">Sort by Activity</div>
+						</div>
+					</div>
 					<div class="poll-dropdown">
 						<button class="tool-btn" onclick="togglePollMenu()">⚡ <span id="pollRateLabel">2 Hz</span> ▾</button>
 						<div id="pollMenu" class="poll-menu">
@@ -1015,15 +1653,54 @@
 				</div>
 			</div>
 			
-			<!-- Health Strip -->
-			<div class="health-strip">
-				<span class="health-label">BUS:</span>
-				<span class="health-state silent" id="healthState">Silent</span>
+			<!-- LED Strip Viewer — always live -->
+			<div class="strip-viewer" id="peekPanel">
+				<div class="strip-viewer-header">
+					<div class="strip-meta-row">
+						<span class="strip-live-pill">
+							<span class="strip-live-dot" id="stripLiveDot"></span>
+							LIVE
+						</span>
+						<span class="strip-fx-label" id="stripFxLabel">Connecting…</span>
+					</div>
+					<div class="strip-stats-row">
+						<span class="strip-stat">
+							<span class="strip-stat-label">LEDs</span>
+							<span class="strip-stat-val" id="stripLedCount">—</span>
+						</span>
+						<span class="strip-stat">
+							<span class="strip-stat-label">FX</span>
+							<span class="strip-stat-val" id="stripFxId">—</span>
+						</span>
+						<span class="strip-stat">
+							<span class="strip-stat-label">FPS</span>
+							<span class="strip-stat-val" id="stripFpsVal">—</span>
+						</span>
+					</div>
+				</div>
+				<div class="led-strip-wrapper" id="ledStripWrapper">
+					<canvas id="peekGlowCanvas"  width="300" height="1"></canvas>
+					<canvas id="peekGlowCanvas2" width="300" height="1"></canvas>
+					<canvas id="peekCanvas"      width="300" height="1"></canvas>
+					<canvas id="peekCoreCanvas"  width="300" height="1"></canvas>
+					<div class="strip-crosshair" id="stripCrosshair"></div>
+					<div class="strip-tooltip" id="stripTooltip"></div>
+				</div>
+				<div class="strip-ruler-row" id="stripRulerRow"></div>
 			</div>
-			
-			<!-- Signal Presence -->
-			<div class="signal-presence" id="signalPresence">
-				<span class="signal-label">Signals:</span>
+
+			<!-- Status Row: BUS/ENGINE health + scrollable signal chips on one line -->
+			<div class="health-strip status-row">
+				<div class="status-row-left">
+					<span class="health-label">BUS:</span>
+					<span class="health-state silent" id="healthState">Silent</span>
+					<span class="status-row-sep"></span>
+					<span class="health-label">ENGINE:</span>
+					<span class="health-state active" id="engineState">Running</span>
+				</div>
+				<div id="signalPresence" class="signal-presence signal-inline">
+					<span class="signal-label">SIGNALS:</span>
+				</div>
 			</div>
 			
 			<!-- Filter Bar -->
@@ -1036,17 +1713,28 @@
 			</div>
 			
 			<div class="pause-indicator" id="pauseIndicator">⏸ Paused</div>
+			<div class="selection-indicator" id="selectionIndicator">
+				👆 <span id="selectionText">Click a CAN ID in the table to assign</span> | <span onclick="cancelIdSelection()" style="cursor: pointer; text-decoration: underline;">Cancel</span>
+			</div>
 			
 			<div class="table-container">
 				<table id="canFramesTable">
+					<colgroup>
+						<col style="width:32px">
+						<col style="width:82px">
+						<col style="width:44px">
+						<col style="width:34px">
+						<col>
+						<col style="width:64px">
+					</colgroup>
 					<thead>
 						<tr>
-							<th>Time</th>
+							<th>Status</th>
 							<th>ID</th>
 							<th>Type</th>
 							<th>DLC</th>
 							<th>Data</th>
-							<th>Decoded</th>
+							<th>Changes</th>
 						</tr>
 					</thead>
 					<tbody id="canFramesBody">
@@ -1082,13 +1770,19 @@
 			</div>
 		</section>
 		
-		<!-- Right: Sidebar -->
+		<!-- Right: Sidebar (tabbed single-glass panel) -->
 		<aside class="sidebar">
-			<!-- Health Card (Connection + Stats merged) -->
-			<div class="card card-secondary">
-				<div class="card-section">
-					<div class="card-header" style="border-bottom: none; padding-bottom: 8px;">
-						<h3 class="card-title">Connection</h3>
+			<nav class="sidebar-tabs">
+				<button class="sidebar-tab active" data-tab="connection" onclick="switchSidebarTab('connection')">Status</button>
+				<button class="sidebar-tab" data-tab="telemetry" onclick="switchSidebarTab('telemetry')">Telemetry</button>
+				<button class="sidebar-tab" data-tab="config" onclick="switchSidebarTab('config')">Config</button>
+			</nav>
+
+			<!-- ── STATUS TAB ─────────────────────────────────────── -->
+			<div id="panel-connection" class="tab-panel active">
+				<div class="panel-section">
+					<div class="panel-section-header">
+						<span class="panel-section-title">Connection</span>
 						<span class="status-chip disabled" id="statusChip">
 							<span class="status-dot"></span>
 							<span id="statusText">Disabled</span>
@@ -1113,10 +1807,10 @@
 						</div>
 					</div>
 				</div>
-				
-				<div class="card-section">
-					<div style="padding: 0 0 var(--spacing-2) 0;">
-						<h3 class="card-title">Statistics</h3>
+
+				<div class="panel-section">
+					<div class="panel-section-header">
+						<span class="panel-section-title">Statistics</span>
 					</div>
 					<div class="stats-grid">
 						<div class="stat-item">
@@ -1137,26 +1831,103 @@
 						</div>
 					</div>
 				</div>
-			</div>
-			
-			<!-- Reactive Panel -->
-			<div class="card card-secondary">
-				<div class="card-header">
-					<h3 class="card-title">Reactive modes</h3>
+
+				<div class="panel-section">
+					<div class="panel-section-header">
+						<span class="panel-section-title">Buffer</span>
+						<span class="label-text mono" id="bufferStatus" style="font-size:10px;">0/128</span>
+					</div>
+					<div style="height: 4px; background: var(--can-bg); border-radius: 2px; overflow: hidden;">
+						<div id="bufferBar" style="height:100%; background: var(--can-cyan); width:0%; transition: width 0.3s ease;"></div>
+					</div>
 				</div>
-				<div class="card-content">
+
+				<div class="panel-section">
+					<div class="panel-section-header">
+						<span class="panel-section-title">Active IDs</span>
+					</div>
+					<div id="activeIdsList" style="display: flex; flex-wrap: wrap; gap: 4px; min-height: 22px;">
+						<span class="label-text" style="opacity: 0.5; font-size: 11px;">Waiting for data...</span>
+					</div>
+				</div>
+			</div>
+
+			<!-- ── TELEMETRY TAB ──────────────────────────────────── -->
+			<div id="panel-telemetry" class="tab-panel">
+				<div class="panel-section">
+					<div class="panel-section-header">
+						<span class="panel-section-title">Live Diagnostics</span>
+						<span style="font-size:9px; color: var(--can-text-3); text-transform: uppercase; letter-spacing: 0.4px;">Click to assign</span>
+					</div>
+					<div style="display: flex; flex-direction: column; gap: var(--spacing-2);">
+						<div class="stat-item selectable" id="statRpmContainer" onclick="startIdSelection('rpm')">
+							<div class="stat-label" style="margin-bottom: 3px;">Engine RPM</div>
+							<div class="stat-value mono" id="diagRpm" style="font-size: 20px; color: var(--can-accent);">--</div>
+							<div class="spark-bar-wrap"><div class="spark-bar spark-rpm" id="sparkRpm" style="width:0%"></div></div>
+							<div class="diag-meta">
+								<span class="diag-id-badge rpm-badge" id="diagRpmId">0x316</span>
+								<span class="label-text mono" id="diagRpmRaw" style="font-size: 9px; color: var(--can-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">--</span>
+							</div>
+						</div>
+						<div class="stat-item selectable" id="statSpeedContainer" onclick="startIdSelection('speed')">
+							<div class="stat-label" style="margin-bottom: 3px;">Vehicle Speed</div>
+							<div class="stat-value mono" id="diagSpeed" style="font-size: 20px; color: var(--can-cyan);">--</div>
+							<div class="spark-bar-wrap"><div class="spark-bar spark-speed" id="sparkSpeed" style="width:0%"></div></div>
+							<div class="diag-meta">
+								<span class="diag-id-badge speed-badge" id="diagSpeedId">0x328</span>
+								<span class="label-text mono" id="diagSpeedRaw" style="font-size: 9px; color: var(--can-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">--</span>
+							</div>
+						</div>
+						<div class="stat-item selectable" id="statThrottleContainer" onclick="startIdSelection('throttle')">
+							<div class="stat-label" style="margin-bottom: 3px;">Throttle Position</div>
+							<div class="stat-value mono" id="diagThrottle" style="font-size: 20px; color: var(--can-success);">--</div>
+							<div class="spark-bar-wrap"><div class="spark-bar spark-throttle" id="sparkThrottle" style="width:0%"></div></div>
+							<div class="diag-meta">
+								<span class="diag-id-badge throttle-badge" id="diagThrottleId">0x329</span>
+								<span class="label-text mono" id="diagThrottleRaw" style="font-size: 9px; color: var(--can-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">--</span>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="panel-section">
+					<div class="panel-section-header">
+						<span class="panel-section-title">Reactive LED Mode</span>
+					</div>
 					<div class="reactive-segmented">
 						<button class="reactive-btn active" data-effect="0" onclick="selectEffect(0)">None</button>
 						<button class="reactive-btn" data-effect="1" onclick="selectEffect(1)">RPM</button>
 						<button class="reactive-btn" data-effect="2" onclick="selectEffect(2)">Speed</button>
 					</div>
-					
-					<!-- Effect Preview -->
 					<div class="effect-preview" id="effectPreview" style="display: none;">
 						<div class="effect-bar"></div>
 					</div>
-					
 					<div class="mode-hint" id="modeHint" style="display: none;"></div>
+				</div>
+			</div>
+
+			<!-- ── CONFIG TAB ─────────────────────────────────────── -->
+			<div id="panel-config" class="tab-panel">
+				<div class="panel-section">
+					<div class="panel-section-header">
+						<span class="panel-section-title">CAN Bus</span>
+						<label style="display: flex; align-items: center; cursor: pointer; gap: 6px;">
+							<input type="checkbox" id="canEnableToggle" style="cursor: pointer; width: 14px; height: 14px;">
+							<span class="label-text" id="canEnableLabel" style="font-size: 11px;">Disabled</span>
+						</label>
+					</div>
+					<div style="margin-bottom: var(--spacing-2);">
+						<label class="label-text" style="display: block; margin-bottom: 4px; font-size: 11px;">Bitrate (bps)</label>
+						<select id="bitrateSelect" style="width: 100%; padding: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--can-border); border-radius: var(--radius-sm); color: var(--can-text-1); font-size: 12px;">
+							<option value="125000">125k</option>
+							<option value="250000">250k</option>
+							<option value="500000" selected>500k</option>
+							<option value="1000000">1000k</option>
+						</select>
+					</div>
+					<button onclick="applyCanConfig()" style="width: 100%; padding: 10px; background: var(--can-accent); border: none; border-radius: var(--radius-sm); color: white; font-weight: 600; cursor: pointer; font-size: 12px; transition: all 120ms; letter-spacing: 0.2px;">
+						Apply Settings
+					</button>
 				</div>
 			</div>
 		</aside>
@@ -1169,7 +1940,7 @@ let pollInterval = null;
 let isPaused = false;
 let framesCache = [];
 let pollRates = [1000, 500, 200, 100]; // slow, normal, fast, turbo (in ms)
-let currentPollRate = 1; // default to normal (2Hz)
+let currentPollRate = 1; // default to normal (2Hz) for stable updates
 let previousCounters = { rx: 0, tx: 0, errors: 0, overruns: 0 };
 let lastRxCount = 0;
 
@@ -1179,8 +1950,13 @@ let signalIds = new Map(); // Track seen IDs: { id -> lastSeenTime }
 let filterState = { input: '', std: false, ext: false, changed: false, errors: false };
 let isCapturing = false;
 let captureBuffer = [];
+let persistentIds = new Map(); // Map<id, {id, ext, rtr, dlc, data, lastSeen, updateCount, inactive}>
+let sortMode = 'id'; // 'id', 'time', 'activity'
+const INACTIVE_TIMEOUT = 5000; // Mark inactive after 5 seconds (longer to prevent flicker)
 let perfMetrics = { renderTime: 0 };
 let lastUpdateTime = 0;
+let selectionMode = null; // 'rpm', 'speed', 'throttle', or null
+let assignedIds = { rpm: null, speed: null, throttle: null }; // Track which IDs are assigned
 
 function initCAN() {
 	// Set initial poll rate
@@ -1192,18 +1968,263 @@ function initCAN() {
 	const savedEffect = parseInt(localStorage.getItem('canEffect') || '0');
 	selectEffect(savedEffect, false);
 	
-	// Close poll menu when clicking outside
+	// Load saved sort mode
+	const savedSort = localStorage.getItem('canSortMode');
+	if (savedSort) {
+		sortMode = savedSort;
+		updateSortMenuSelection();
+		updateSortLabel();
+	}
+	
+	// Close menus when clicking outside
 	document.addEventListener('click', function(e) {
-		const dropdown = document.querySelector('.poll-dropdown');
-		const menu = document.getElementById('pollMenu');
-		if (dropdown && !dropdown.contains(e.target)) {
-			menu.classList.remove('show');
+		if (!e.target.closest('.poll-dropdown')) {
+			document.getElementById('pollMenu')?.classList.remove('show');
+			document.getElementById('sortMenu')?.classList.remove('show');
 		}
 	});
 	
+	// Enable toggle event listener
+	const enableToggle = document.getElementById('canEnableToggle');
+	const enableLabel = document.getElementById('canEnableLabel');
+	if (enableToggle) {
+		enableToggle.addEventListener('change', function() {
+			enableLabel.textContent = this.checked ? 'Enabled' : 'Disabled';
+			enableLabel.style.color = this.checked ? 'var(--can-success)' : 'var(--can-text-3)';
+		});
+	}
+	
+	// Restore active sidebar tab
+	const savedTab = localStorage.getItem('canActiveTab') || 'connection';
+	switchSidebarTab(savedTab);
+
+	// Restore mobile view from last session (fires switchCanView which also calls switchSidebarTab)
+	const savedView = localStorage.getItem('can_mobile_tab') || 'frames';
+	switchCanView(savedView);
+
+	// Cursor-following glow on main panel
+	const mainPanel = document.querySelector('.frames-card');
+	if (mainPanel) {
+		mainPanel.addEventListener('mousemove', function(e) {
+			const r = mainPanel.getBoundingClientRect();
+			mainPanel.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%');
+			mainPanel.style.setProperty('--my', ((e.clientY - r.top)  / r.height * 100).toFixed(1) + '%');
+		});
+	}
+
 	// Start polling
 	startPolling();
 	fetchCANData();
+	initStripViewer();
+	_syncEngineState();
+}
+
+// ─── LED Strip Viewer ─────────────────────────────────────────────────────────
+var peekCanvas    = null;
+var peekGlow      = null;
+var peekGlow2     = null;
+var peekCore      = null;
+var peekCtx       = null;
+var peekGlowCtx   = null;
+var peekGlowCtx2  = null;
+var peekCoreCtx   = null;
+var peekTimer     = null;
+var _peekFpsFrm   = 0;
+var _peekFpsTs    = 0;
+
+// Effect name lookup — all CAN effects + common 1D effects
+var FX_NAMES = (function() {
+	var n = {};
+	['Solid','Blink','Breathe','Wipe','Wipe Rnd','Random Colors','Sweep','Dynamic',
+	 'Colorloop','Rainbow','Scan','Dual Scan','Fade','Theater','Theater Rbow',
+	 'Running Lights','Saw','Twinkle','Dissolve','Dissolve Rnd','Sparkle',
+	 'Flash Sparkle','Hyper Sparkle','Strobe','Strobe Rbow','Multi Strobe',
+	 'Blink Rbow','Android','Chase','Chase Rnd','Chase Rbow','Chase Flash',
+	 'Chase Flash Rnd','Chase White','Colorful','Traffic Light','Color Sweep Rnd',
+	 'Red & Blue','Aurora','Running Rnd','Larson Scanner','Comet','Fireworks',
+	 'Rain','Tetrix','Fire Flicker','Gradient','Loading','Rolling Balls','Fairy',
+	 'Two Dots','Fairy Twinkle','Running Dual','Image','Tricolor Chase',
+	 'Tricolor Wipe','Tricolor Fade','Lightning','ICU','Multi Comet',
+	 'Scanner Dual','Random Chase','Oscillate','Pride 2015','Juggle','Palette',
+	 'Fire 2012','Colorwaves','BPM','Fill Noise','Noise 1','Noise 2','Noise 3',
+	 'Noise 4','Colortwinkles','Lake','Meteor','Copy','Railway','Ripple',
+	 'Twinklefox','Twinklecat','Halloween Eyes','Static Pattern',
+	 'Tri Static Pattern','Spots','Spots Fade','Glitter','Candle','Starburst',
+	 'Exploding FW','Bouncing Balls','Sinelon','Sinelon Dual','Sinelon Rbow',
+	 'Popcorn','Drip','Plasma','Percent','Ripple Rbow','Heartbeat','Pacifica'
+	].forEach(function(name, i) { n[i] = name; });
+	n[218] = 'CAN RPM Pulse';
+	n[219] = 'CAN Speed Color';
+	n[220] = 'CAN Throttle';
+	n[221] = 'CAN Speed Noise';
+	return n;
+})();
+
+function initStripViewer() {
+	peekCanvas = document.getElementById('peekCanvas');
+	peekGlow   = document.getElementById('peekGlowCanvas');
+	peekGlow2  = document.getElementById('peekGlowCanvas2');
+	peekCore   = document.getElementById('peekCoreCanvas');
+	if (peekCanvas) peekCtx      = peekCanvas.getContext('2d');
+	if (peekGlow)   peekGlowCtx  = peekGlow.getContext('2d');
+	if (peekGlow2)  peekGlowCtx2 = peekGlow2.getContext('2d');
+	if (peekCore)   peekCoreCtx  = peekCore.getContext('2d');
+
+	// Crosshair + tooltip on hover
+	var wrapper = document.getElementById('ledStripWrapper');
+	if (wrapper) {
+		wrapper.addEventListener('mousemove', function(e) {
+			var rect   = wrapper.getBoundingClientRect();
+			var N      = peekCanvas ? peekCanvas.width : 300;
+			var idx    = Math.floor((e.clientX - rect.left) / rect.width * N);
+			idx = Math.max(0, Math.min(N - 1, idx));
+			var xPct   = ((idx + 0.5) / N * 100).toFixed(2) + '%';
+			var xhair  = document.getElementById('stripCrosshair');
+			var tip    = document.getElementById('stripTooltip');
+			if (xhair) { xhair.style.left = xPct; xhair.style.display = 'block'; }
+			if (tip)   { tip.style.left = xPct; tip.style.display = 'block'; tip.textContent = '#' + idx; }
+		});
+		wrapper.addEventListener('mouseleave', function() {
+			var xhair = document.getElementById('stripCrosshair');
+			var tip   = document.getElementById('stripTooltip');
+			if (xhair) xhair.style.display = 'none';
+			if (tip)   tip.style.display   = 'none';
+		});
+	}
+
+	_peekFpsTs = Date.now();
+	stripRenderLoop();
+}
+
+function stripRenderLoop() {
+	fetch('/json/live')
+		.then(function(r) { return r.json(); })
+		.then(function(json) {
+			var leds = json.leds;
+			if (!leds || !leds.length) return;
+			var N = leds.length;
+
+			if (peekCanvas && peekCanvas.width !== N) peekCanvas.width = N;
+			if (peekGlow   && peekGlow.width   !== N) peekGlow.width   = N;
+			if (peekGlow2  && peekGlow2.width  !== N) peekGlow2.width  = N;
+			if (peekCore   && peekCore.width   !== N) peekCore.width   = N;
+
+			for (var i = 0; i < N; i++) {
+				var hex = leds[i] || '000000';
+				if (hex.length > 6) hex = hex.slice(2);
+				var col = '#' + hex;
+				if (peekCtx)      { peekCtx.fillStyle      = col; peekCtx.fillRect(i, 0, 1, 1); }
+				if (peekGlowCtx)  { peekGlowCtx.fillStyle  = col; peekGlowCtx.fillRect(i, 0, 1, 1); }
+				if (peekGlowCtx2) { peekGlowCtx2.fillStyle = col; peekGlowCtx2.fillRect(i, 0, 1, 1); }
+				if (peekCoreCtx) {
+					// Blend LED color toward white by its own luminance — hot core effect
+					var r   = parseInt(hex.slice(0,2), 16);
+					var g   = parseInt(hex.slice(2,4), 16);
+					var b   = parseInt(hex.slice(4,6), 16);
+					var lum = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+					var cr  = Math.min(255, (r + ((255 - r) * lum * 0.94)) | 0);
+					var cg  = Math.min(255, (g + ((255 - g) * lum * 0.94)) | 0);
+					var cb  = Math.min(255, (b + ((255 - b) * lum * 0.94)) | 0);
+					peekCoreCtx.fillStyle = 'rgb(' + cr + ',' + cg + ',' + cb + ')';
+					peekCoreCtx.fillRect(i, 0, 1, 1);
+				}
+			}
+
+			// FPS counter
+			_peekFpsFrm++;
+			var now = Date.now();
+			if (now - _peekFpsTs >= 1000) {
+				var fpsEl = document.getElementById('stripFpsVal');
+				if (fpsEl) fpsEl.textContent = _peekFpsFrm;
+				_peekFpsFrm = 0;
+				_peekFpsTs  = now;
+			}
+
+			// Labels
+			var seg    = canData && canData.seg ? canData.seg[0] : null;
+			var fxId   = seg ? (seg.fx || 0) : 0;
+			var fxName = FX_NAMES[fxId] || ('fx.' + fxId);
+			var fxLbl  = document.getElementById('stripFxLabel');
+			var fxIdEl = document.getElementById('stripFxId');
+			var ledEl  = document.getElementById('stripLedCount');
+			var dot    = document.getElementById('stripLiveDot');
+			if (fxLbl)  fxLbl.textContent  = fxName;
+			if (fxIdEl) fxIdEl.textContent  = fxId;
+			if (ledEl)  ledEl.textContent   = N;
+			if (dot)    dot.className       = 'strip-live-dot active';
+
+			// Ruler — build once
+			var ruler = document.getElementById('stripRulerRow');
+			if (ruler && !ruler._built) {
+				ruler._built = true;
+				var step = N <= 100 ? 10 : N <= 300 ? 50 : 100;
+				var marks = [];
+				for (var t = 0; t <= N; t += step)
+					marks.push('<span class="strip-ruler-mark">' + t + '</span>');
+				ruler.innerHTML = marks.join('');
+			}
+		})
+		.catch(function() {
+			var dot = document.getElementById('stripLiveDot');
+			if (dot) dot.className = 'strip-live-dot';
+		})
+		.finally(function() {
+			peekTimer = setTimeout(stripRenderLoop, 40);
+		});
+}
+
+// backward-compat stub
+function togglePeek() {}
+
+// ─── Engine start / stop ──────────────────────────────────────────────────────
+var _engineOn = true;
+
+function toggleEngine() {
+	_engineOn = !_engineOn;
+	fetch('/mock/input', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ engineOn: _engineOn })
+	})
+	.then(function(r) { return r.json(); })
+	.then(function(d) {
+		if (d && d.car && d.car.engineOn !== undefined) _engineOn = d.car.engineOn;
+		_updateEngineUI();
+	})
+	.catch(function() { _updateEngineUI(); });
+}
+
+function _updateEngineUI() {
+	// Toolbar button (desktop, hidden on mobile after removal)
+	var btn = document.getElementById('btnEngine');
+	if (btn) {
+		btn.textContent = _engineOn ? '🔑 Engine On' : '🔑 Engine Off';
+		btn.className   = 'tool-btn ' + (_engineOn ? 'engine-on' : 'engine-off');
+	}
+	// Header action button
+	var hdrBtn = document.getElementById('hdrBtnEngine');
+	if (hdrBtn) {
+		hdrBtn.className = 'hdr-action-btn ' + (_engineOn ? 'engine-on' : 'engine-off');
+		hdrBtn.title = _engineOn ? 'Engine On — click to stop' : 'Engine Off — click to start';
+	}
+	// Status dot in sidebar
+	var dot = document.getElementById('engineState');
+	if (dot) {
+		dot.className   = 'health-state ' + (_engineOn ? 'active' : 'silent');
+		dot.textContent = _engineOn ? 'Running' : 'Stopped';
+	}
+}
+
+function _syncEngineState() {
+	fetch('/mock/car')
+		.then(function(r) { return r.json(); })
+		.then(function(d) {
+			if (d && d.engineOn !== undefined) {
+				_engineOn = d.engineOn;
+				_updateEngineUI();
+			}
+		})
+		.catch(function() {});
 }
 
 function startPolling() {
@@ -1216,8 +2237,8 @@ function startPolling() {
 function fetchCANData() {
 	if (isPaused) return;
 	
-	const wantsFrames = isCapturing;
-	const canUrl = wantsFrames ? '/json/can?full=1' : '/json/can';
+	// Always fetch full state including frames
+	const canUrl = '/json/state';
 	
 	fetch(getURL(canUrl))
 		.then(response => response.json())
@@ -1227,15 +2248,28 @@ function fetchCANData() {
 		})
 		.catch(err => {
 			console.error('CAN fetch error:', err);
-			updateStatusBadge('error');
+			// Error state - UI will show stale data
 		});
 }
 
 function updateUI(data) {
 	const startTime = performance.now();
 	const can = data.can || {};
-	const frames = data.frames || [];
-	const now = data.nowMs || Date.now();
+	const frames = can.recentFrames || [];
+	const now = Date.now();
+	
+	// Update configuration controls
+	const enableToggle = document.getElementById('canEnableToggle');
+	const enableLabel = document.getElementById('canEnableLabel');
+	const bitrateSelect = document.getElementById('bitrateSelect');
+	if (enableToggle) {
+		enableToggle.checked = can.enabled || false;
+		enableLabel.textContent = can.enabled ? 'Enabled' : 'Disabled';
+		enableLabel.style.color = can.enabled ? 'var(--can-success)' : 'var(--can-text-3)';
+	}
+	if (bitrateSelect && can.bitrate) {
+		bitrateSelect.value = can.bitrate;
+	}
 	
 	// Update status strip
 	updateStatusStrip(can);
@@ -1252,6 +2286,50 @@ function updateUI(data) {
 	updateCounter('statErrors', can.errors || 0, previousCounters.errors);
 	updateCounter('statOverruns', can.overruns || 0, previousCounters.overruns);
 	
+	// Update buffer status
+	const bufferCount = can.bufferCount || 0;
+	const bufferSize = can.bufferSize || 128;
+	const bufferPercent = (bufferCount * 100) / bufferSize;
+	document.getElementById('bufferStatus').textContent = `${bufferCount}/${bufferSize}`;
+	document.getElementById('bufferBar').style.width = bufferPercent + '%';
+	
+	// Track assigned IDs from backend (use !== undefined so ID 0x000 is valid)
+	if (can.rpmCanId !== undefined)      assignedIds.rpm      = can.rpmCanId;
+	if (can.speedCanId !== undefined)    assignedIds.speed    = can.speedCanId;
+	if (can.throttleCanId !== undefined) assignedIds.throttle = can.throttleCanId;
+	
+	// Update active IDs list (sorted numerically)
+	const activeIdsList = document.getElementById('activeIdsList');
+	if (can.activeIds && can.activeIds.length > 0) {
+		// Sort IDs numerically
+		const sortedIds = [...can.activeIds].sort((a, b) => a - b);
+		activeIdsList.innerHTML = sortedIds.map(id => {
+			const idHex = '0x' + id.toString(16).toUpperCase();
+			const isConfigured = (id === can.rpmCanId || id === can.speedCanId || id === can.throttleCanId);
+			const color = isConfigured ? 'var(--can-success)' : 'var(--can-text-2)';
+			return `<span style="font-size: 10px; padding: 2px 6px; background: var(--can-bg); border: 1px solid var(--can-border); border-radius: 3px; color: ${color}; font-family: monospace;">${idHex}</span>`;
+		}).join('');
+	} else {
+		activeIdsList.innerHTML = '<span class="label-text" style="opacity: 0.5;">No data</span>';
+	}
+	
+	// Update diagnostic stats
+	document.getElementById('diagRpm').textContent = can.calcRpm >= 0 ? can.calcRpm + ' RPM' : '--';
+	const _sRpm = document.getElementById('sparkRpm'); if (_sRpm) _sRpm.style.width = can.calcRpm >= 0 ? Math.min(100, can.calcRpm / 7200 * 100).toFixed(1) + '%' : '0%';
+	document.getElementById('diagSpeed').textContent = can.calcSpeed >= 0 ? can.calcSpeed + ' km/h  (' + Math.round(can.calcSpeed * 0.621371) + ' mph)' : '--';
+	const _sSpd = document.getElementById('sparkSpeed'); if (_sSpd) _sSpd.style.width = can.calcSpeed >= 0 ? Math.min(100, can.calcSpeed / 200 * 100).toFixed(1) + '%' : '0%';
+	document.getElementById('diagThrottle').textContent = can.calcThrottle >= 0 ? can.calcThrottle + ' %' : '--';
+	const _sThr = document.getElementById('sparkThrottle'); if (_sThr) _sThr.style.width = can.calcThrottle >= 0 ? Math.min(100, can.calcThrottle).toFixed(1) + '%' : '0%';
+	
+	// Update raw frame data
+	document.getElementById('diagRpmRaw').textContent = can.rawRpmFrame || '--';
+	document.getElementById('diagSpeedRaw').textContent = can.rawSpeedFrame || '--';
+	document.getElementById('diagThrottleRaw').textContent = can.rawThrottleFrame || '--';
+	
+	document.getElementById('diagRpmId').textContent      = '0x' + (can.rpmCanId      !== undefined ? can.rpmCanId      : 0x316).toString(16).toUpperCase();
+	document.getElementById('diagSpeedId').textContent    = '0x' + (can.speedCanId    !== undefined ? can.speedCanId    : 0x328).toString(16).toUpperCase();
+	document.getElementById('diagThrottleId').textContent = '0x' + (can.throttleCanId !== undefined ? can.throttleCanId : 0x329).toString(16).toUpperCase();
+	
 	previousCounters = {
 		rx: can.rxCount || 0,
 		tx: can.txCount || 0,
@@ -1259,18 +2337,28 @@ function updateUI(data) {
 		overruns: can.overruns || 0
 	};
 	
-	// Update frames table
-	if (frames.length > 0 && frames.length !== framesCache.length) {
+	// Always update frames table to maintain live status and inactive marking
+	if (frames.length > 0) {
 		const isNewFrames = frames.length > framesCache.length;
+		
+		// Add to capture buffer if capturing and new frames arrived
+		if (isCapturing && isNewFrames) {
+			const newFrameCount = frames.length - framesCache.length;
+			if (newFrameCount > 0) {
+				captureBuffer.push(...frames.slice(-newFrameCount));
+			}
+		}
+		
 		framesCache = frames;
 		renderFrames(frames, now, isNewFrames);
-		
-		// Add to capture buffer if capturing
-		if (isCapturing && isNewFrames) {
-			captureBuffer.push(...frames.slice(framesCache.length - (frames.length - framesCache.length)));
-		}
+	} else {
+		// No frames in buffer, but still update table to mark inactive IDs
+		renderFrames([], now, false);
 	}
 	
+	// Update header info bar (Zone B contextual readout)
+	updateHeaderInfoBar(can);
+
 	// Track render time
 	perfMetrics.renderTime = performance.now() - startTime;
 }
@@ -1356,20 +2444,58 @@ function updateCounter(elementId, newValue, oldValue) {
 function renderFrames(frames, now, isNewFrames) {
 	const tbody = document.getElementById('canFramesBody');
 	
-	if (frames.length === 0) {
-		if (!isCapturing) {
-			tbody.innerHTML = `<tr><td colspan="6">
-				<div class="empty-state">
-					<div class="empty-state-icon">📥</div>
-					<div class="empty-state-title">Capture is off</div>
-					<div class="empty-state-hints">
-						<span class="hint-chip" onclick="toggleCapture()">⏺ Enable capture to load frames</span>
-					</div>
-				</div>
-			</td></tr>`;
-			return;
+	// Update persistent ID table
+	frames.forEach(frame => {
+		const key = frame.id;
+		const existing = persistentIds.get(key);
+		
+		if (existing) {
+			// Check if data changed
+			let dataChanged = false;
+			if (existing.data && frame.data) {
+				for (let i = 0; i < Math.max(existing.data.length, frame.data.length); i++) {
+					if (existing.data[i] !== frame.data[i]) {
+						dataChanged = true;
+						break;
+					}
+				}
+			}
+			
+			persistentIds.set(key, {
+				id: frame.id,
+				ext: frame.ext,
+				rtr: frame.rtr,
+				dlc: frame.dlc,
+				data: frame.data ? [...frame.data] : [],
+				lastSeen: now,
+				updateCount: (existing.updateCount || 0) + 1,
+				inactive: false,
+				changed: dataChanged
+			});
+		} else {
+			persistentIds.set(key, {
+				id: frame.id,
+				ext: frame.ext,
+				rtr: frame.rtr,
+				dlc: frame.dlc,
+				data: frame.data ? [...frame.data] : [],
+				lastSeen: now,
+				updateCount: 1,
+				inactive: false,
+				changed: false
+			});
 		}
-
+	});
+	
+	// Mark inactive IDs
+	for (let [key, entry] of persistentIds) {
+		if (now - entry.lastSeen > INACTIVE_TIMEOUT) {
+			entry.inactive = true;
+			entry.changed = false;
+		}
+	}
+	
+	if (persistentIds.size === 0) {
 		// Intelligent empty state
 		const canEnabled = canData && canData.can && canData.can.enabled;
 		const rxCount = canData && canData.can ? canData.can.rxCount : 0;
@@ -1392,9 +2518,9 @@ function renderFrames(frames, now, isNewFrames) {
 			tbody.innerHTML = `<tr><td colspan="6">
 				<div class="empty-state">
 					<div class="empty-state-icon">📡</div>
-					<div class="empty-state-title">No CAN traffic</div>
+					<div class="empty-state-title">No frames in buffer</div>
 					<div class="empty-state-hints">
-						<span class="hint-chip">📡 Waiting for traffic</span>
+						<span class="hint-chip">📡 Buffer may be cycling too fast</span>
 					</div>
 				</div>
 			</td></tr>`;
@@ -1402,10 +2528,18 @@ function renderFrames(frames, now, isNewFrames) {
 		return;
 	}
 	
-	tbody.innerHTML = '';
+	// Sort persistent IDs
+	let sortedEntries = Array.from(persistentIds.values());
+	if (sortMode === 'id') {
+		sortedEntries.sort((a, b) => a.id - b.id);
+	} else if (sortMode === 'time') {
+		sortedEntries.sort((a, b) => b.lastSeen - a.lastSeen);
+	} else if (sortMode === 'activity') {
+		sortedEntries.sort((a, b) => b.updateCount - a.updateCount);
+	}
 	
 	// Apply filters
-	let displayFrames = frames.slice(-20);
+	let displayFrames = sortedEntries;
 	
 	// Filter by ID
 	if (filterState.input) {
@@ -1423,44 +2557,98 @@ function renderFrames(frames, now, isNewFrames) {
 		displayFrames = displayFrames.filter(f => f.ext);
 	}
 	
-	// TODO: Implement 'changed' and 'errors' filters when backend provides delta/error info
+	// Create a map of current rows by ID for efficient updates
+	const existingRows = new Map();
+	Array.from(tbody.rows).forEach(row => {
+		const idAttr = row.getAttribute('data-can-id');
+		if (idAttr) existingRows.set(parseInt(idAttr), row);
+	});
 	
-	// Render in reverse order (newest first)
-	for (let i = displayFrames.length - 1; i >= 0; i--) {
-		const frame = displayFrames[i];
-		const row = tbody.insertRow();
+	// Track which IDs should be displayed
+	const displayIds = new Set(displayFrames.map(f => f.id));
+	
+	// Remove rows that are no longer in display list
+	existingRows.forEach((row, id) => {
+		if (!displayIds.has(id)) {
+			row.remove();
+		}
+	});
+	
+	// Update or create rows for each frame
+	displayFrames.forEach((entry, index) => {
+		let row = existingRows.get(entry.id);
 		
-		// Flash animation on newest frame
-		if (isNewFrames && i === displayFrames.length - 1) {
-			row.classList.add('flash-in');
+		if (!row) {
+			// Create new row at correct position
+			if (index === 0) {
+				row = tbody.insertRow(0);
+			} else {
+				const prevEntry = displayFrames[index - 1];
+				const prevRow = existingRows.get(prevEntry.id);
+				if (prevRow && prevRow.nextSibling) {
+					row = tbody.insertRow(prevRow.rowIndex);
+				} else {
+					row = tbody.insertRow();
+				}
+			}
+			row.setAttribute('data-can-id', entry.id);
+			existingRows.set(entry.id, row);
 		}
 		
-		// Time
-		const elapsed = now - frame.t_ms;
+		// ── Always update (new OR existing row) ──────────────────────────
+		row.style.opacity = entry.inactive ? '0.4' : '1';
+		
+		if (entry.changed && !entry.inactive) {
+			row.classList.add('flash-in');
+			setTimeout(() => row.classList.remove('flash-in'), 500);
+		}
+		
+		row.innerHTML = '';
+		
+		// Click handler for ID assignment
+		if (selectionMode) {
+			row.classList.add('clickable-row');
+			row.onclick = (e) => { e.stopPropagation(); assignCanId(entry.id); };
+		} else {
+			row.classList.remove('clickable-row');
+			row.onclick = null;
+		}
+		
+		// Multi-assignment color classes (rpm=orange, speed=blue, throttle=green, can mix)
+		row.classList.remove('assigned-rpm', 'assigned-speed', 'assigned-throttle');
+		if (assignedIds.rpm !== null && assignedIds.rpm === entry.id)       row.classList.add('assigned-rpm');
+		if (assignedIds.speed !== null && assignedIds.speed === entry.id)   row.classList.add('assigned-speed');
+		if (assignedIds.throttle !== null && assignedIds.throttle === entry.id) row.classList.add('assigned-throttle');
+		
+		// Status indicator
+		const statusCell = row.insertCell();
+		const statusIcon = entry.inactive ? '⚫' : (entry.changed ? '🟢' : '🔵');
+		const elapsed = now - entry.lastSeen;
 		const timeStr = elapsed < 1000 ? `${elapsed}ms` : `${Math.floor(elapsed / 1000)}s`;
-		row.insertCell().textContent = timeStr;
+		statusCell.innerHTML = `<span title="${entry.inactive ? 'Inactive' : 'Active'} - Last seen ${timeStr} ago">${statusIcon}</span>`;
+		statusCell.style.textAlign = 'center';
 		
 		// ID with color coding
 		const idCell = row.insertCell();
-		const idHex = '0x' + frame.id.toString(16).toUpperCase().padStart(3, '0');
-		idCell.innerHTML = `<span class="can-id ${frame.ext ? 'id-ext' : 'id-std'}">${idHex}</span>`;
+		const idHex = '0x' + entry.id.toString(16).toUpperCase().padStart(3, '0');
+		idCell.innerHTML = `<span class="can-id ${entry.ext ? 'id-ext' : 'id-std'}">${idHex}</span>`;
 		
 		// Type
 		const typeCell = row.insertCell();
-		typeCell.textContent = (frame.ext ? 'EXT' : 'STD') + (frame.rtr ? ' RTR' : '');
+		typeCell.textContent = (entry.ext ? 'EXT' : 'STD') + (entry.rtr ? ' RTR' : '');
 		typeCell.className = 'mono';
 		
 		// DLC
 		const dlcCell = row.insertCell();
-		dlcCell.textContent = frame.dlc;
+		dlcCell.textContent = entry.dlc;
 		dlcCell.className = 'mono';
 		
 		// Data bytes
 		const dataCell = row.insertCell();
-		if (frame.data && frame.data.length > 0) {
+		if (entry.data && entry.data.length > 0) {
 			const bytesDiv = document.createElement('div');
 			bytesDiv.className = 'data-bytes';
-			frame.data.forEach(byte => {
+			entry.data.forEach(byte => {
 				const pill = document.createElement('span');
 				pill.className = 'byte';
 				pill.textContent = byte.toString(16).toUpperCase().padStart(2, '0');
@@ -1468,15 +2656,16 @@ function renderFrames(frames, now, isNewFrames) {
 			});
 			dataCell.appendChild(bytesDiv);
 		} else {
-			dataCell.textContent = '--';
+			dataCell.textContent = entry.rtr ? 'RTR' : '--';
+			dataCell.className = 'mono';
 		}
 		
-		// Decoded column (for future extensibility)
-		const decodedCell = row.insertCell();
-		decodedCell.textContent = '--';
-		decodedCell.style.color = 'var(--can-text-3)';
-		decodedCell.style.fontSize = '11px';
-	}
+		// Changes counter
+		const changesCell = row.insertCell();
+		changesCell.textContent = entry.updateCount || 0;
+		changesCell.className = 'mono';
+		changesCell.style.color = entry.changed ? 'var(--can-success)' : 'var(--can-text-3)';
+	}); // end displayFrames.forEach
 	
 	// Show "no matches" if filters active but no results
 	if (displayFrames.length === 0 && frames.length > 0) {
@@ -1531,6 +2720,37 @@ function selectEffect(effectId, shouldSave = true) {
 	}
 }
 
+function toggleSortMenu() {
+	const menu = document.getElementById('sortMenu');
+	menu.classList.toggle('show');
+}
+
+function selectSort(mode) {
+	sortMode = mode;
+	localStorage.setItem('canSortMode', mode);
+	updateSortMenuSelection();
+	updateSortLabel();
+	document.getElementById('sortMenu').classList.remove('show');
+	// Re-render with new sort
+	if (framesCache.length > 0) {
+		renderFrames(framesCache, canData.nowMs || Date.now(), false);
+	}
+}
+
+function updateSortLabel() {
+	const labels = { id: 'ID', time: 'Time', activity: 'Activity' };
+	const label = document.getElementById('sortLabel');
+	if (label) {
+		label.textContent = labels[sortMode] || 'ID';
+	}
+}
+
+function updateSortMenuSelection() {
+	document.querySelectorAll('#sortMenu .poll-option').forEach(opt => opt.classList.remove('active'));
+	const selected = document.querySelector(`[data-sort="${sortMode}"]`);
+	if (selected) selected.classList.add('active');
+}
+
 function togglePollMenu() {
 	const menu = document.getElementById('pollMenu');
 	menu.classList.toggle('show');
@@ -1562,18 +2782,21 @@ function updatePollMenuSelection() {
 function togglePause() {
 	isPaused = !isPaused;
 	const btn = document.getElementById('btnPause');
+	const hdrBtn = document.getElementById('hdrBtnPause');
 	const indicator = document.getElementById('pauseIndicator');
 	
 	if (isPaused) {
-		btn.textContent = '▶ Resume';
-		indicator.style.display = 'block';
+		if (btn) btn.textContent = '▶ Resume';
+		if (hdrBtn) hdrBtn.classList.add('paused');
+		if (indicator) indicator.style.display = 'block';
 		if (pollInterval) {
 			clearInterval(pollInterval);
 			pollInterval = null;
 		}
 	} else {
-		btn.textContent = '⏸ Pause';
-		indicator.style.display = 'none';
+		if (btn) btn.textContent = '⏸ Pause';
+		if (hdrBtn) hdrBtn.classList.remove('paused');
+		if (indicator) indicator.style.display = 'none';
 		startPolling();
 		fetchCANData();
 	}
@@ -1581,6 +2804,7 @@ function togglePause() {
 
 function clearFrames() {
 	framesCache = [];
+	persistentIds.clear();
 	const tbody = document.getElementById('canFramesBody');
 	tbody.innerHTML = `<tr><td colspan="6">
 		<div class="empty-state">
@@ -1828,10 +3052,369 @@ function updateEffectPreview(effectId) {
 	}
 }
 
+// Test different CAN IDs for each parameter
+function testCanId(param, canId) {
+	const payload = { can: {} };
+	
+	// Convert parameter name to correct key
+	if (param === 'rpm') {
+		payload.can.rpmCanId = canId;
+	} else if (param === 'speed') {
+		payload.can.speedCanId = canId;
+	} else if (param === 'throttle') {
+		payload.can.throttleCanId = canId;
+	}
+	
+	const idHex = '0x' + canId.toString(16).toUpperCase().padStart(3, '0');
+	console.log(`[CAN TEST] Sending ${param.toUpperCase()}: ${idHex}`, payload);
+	
+	// Send update to device
+	fetch('/json/state', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload)
+	})
+	.then(response => {
+		console.log(`[CAN TEST] Response status: ${response.status}`);
+		return response.json();
+	})
+	.then(data => {
+		console.log(`[CAN TEST] Response data:`, data);
+		// Force immediate refresh to see result
+		setTimeout(fetchCANData, 200);
+	})
+	.catch(err => {
+		console.error('[CAN TEST] Failed to update CAN ID:', err);
+	});
+}
+
+// Apply CAN configuration (enable/disable and bitrate)
+function applyCanConfig() {
+	const enabled = document.getElementById('canEnableToggle').checked;
+	const bitrate = parseInt(document.getElementById('bitrateSelect').value);
+	
+	const payload = {
+		"CAN-TWAI": {
+			enabled: enabled,
+			bitrate: bitrate
+		}
+	};
+	
+	console.log('[CAN CONFIG] Applying:', payload);
+	
+	fetch('/json/cfg', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload)
+	})
+	.then(response => response.json())
+	.then(data => {
+		console.log('[CAN CONFIG] Saved, restarting CAN...');
+		// Config saved, wait for restart then refresh
+		setTimeout(fetchCANData, 1500);
+	})
+	.catch(err => {
+		console.error('[CAN CONFIG] Failed to apply settings:', err);
+	});
+}
+
 window.addEventListener('beforeunload', function() {
 	if (pollInterval) clearInterval(pollInterval);
 });
+
+// ID assignment functions
+function startIdSelection(type) {
+	if (isPaused) {
+		alert('Please resume monitoring before assigning IDs');
+		return;
+	}
+	
+	selectionMode = type;
+	const indicator = document.getElementById('selectionIndicator');
+	const text = document.getElementById('selectionText');
+	const labels = { rpm: 'Engine RPM', speed: 'Vehicle Speed', throttle: 'Throttle Position' };
+	
+	text.textContent = `Click a CAN ID in the table to assign to ${labels[type]}`;
+	indicator.style.display = 'block';
+	
+	// Highlight the selected stat container
+	document.querySelectorAll('.stat-item.selecting').forEach(el => el.classList.remove('selecting'));
+	document.getElementById(`stat${type.charAt(0).toUpperCase() + type.slice(1)}Container`).classList.add('selecting');
+	
+	// Re-render to add click handlers
+	if (framesCache.length > 0) {
+		renderFrames(framesCache, canData.nowMs || Date.now(), false);
+	}
+}
+
+function cancelIdSelection() {
+	selectionMode = null;
+	document.getElementById('selectionIndicator').style.display = 'none';
+	document.querySelectorAll('.stat-item.selecting').forEach(el => el.classList.remove('selecting'));
+	
+	// Re-render to remove click handlers
+	if (framesCache.length > 0) {
+		renderFrames(framesCache, canData.nowMs || Date.now(), false);
+	}
+}
+
+function assignCanId(canId) {
+	if (!selectionMode) return;
+	
+	const fieldMap = {
+		rpm: 'rpmCanId',
+		speed: 'speedCanId',
+		throttle: 'throttleCanId'
+	};
+	
+	// Update local tracking immediately
+	assignedIds[selectionMode] = canId;
+	
+	const canPayload = {};
+	canPayload[fieldMap[selectionMode]] = canId;
+	
+	fetch(getURL('/json/state'), {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ can: canPayload })
+	})
+	.then(response => {
+		if (!response.ok) throw new Error(`HTTP ${response.status}`);
+		return response.json();
+	})
+	.then(data => {
+		const idHex = '0x' + canId.toString(16).toUpperCase();
+		const labels = { rpm: 'RPM', speed: 'Speed', throttle: 'Throttle' };
+		const colors = { rpm: 'var(--can-accent)', speed: 'var(--can-cyan)', throttle: 'var(--can-success)' };
+		showToast(`${idHex} → ${labels[selectionMode]}`, colors[selectionMode]);
+		cancelIdSelection();
+		// Refresh to show new assignment
+		setTimeout(fetchCANData, 200);
+	})
+	.catch(err => {
+		console.error('Failed to assign ID:', err);
+		alert(`❌ Failed to assign ID: ${err.message}`);
+		// Revert local assignment on failure
+		assignedIds[selectionMode] = null;
+	});
+}
+
+// ─── Sidebar tab switching ───────────────────────────────────────────────────
+function switchSidebarTab(tab) {
+	document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+	document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+	const tabEl = document.querySelector(`[data-tab="${tab}"]`);
+	const panelEl = document.getElementById(`panel-${tab}`);
+	if (tabEl)   tabEl.classList.add('active');
+	if (panelEl) panelEl.classList.add('active');
+	localStorage.setItem('canActiveTab', tab);
+}
+
+// ─── Mobile bottom-bar view switching ────────────────────────────────────────
+function switchCanView(view) {
+	// Update bottom bar active state
+	document.querySelectorAll('.can-bot-btn').forEach(function(b) {
+		var isActive = (b.dataset.view === view);
+		b.classList.toggle('active', isActive);
+		b.setAttribute('aria-selected', isActive ? 'true' : 'false');
+	});
+	var isMobile = window.innerWidth <= 900;
+	var framesCard = document.querySelector('.frames-card');
+	var sidebar    = document.querySelector('.sidebar');
+	if (!framesCard || !sidebar) return;
+	if (!isMobile) {
+		// Desktop: keep both panels, just switch sidebar tab if relevant
+		framesCard.style.display = '';
+		sidebar.style.display    = '';
+		if (view !== 'frames') switchSidebarTab(view);
+		return;
+	}
+	// Mobile: toggle which panel is visible
+	if (view === 'frames') {
+		framesCard.style.display = '';
+		sidebar.style.display    = 'none';
+	} else {
+		framesCard.style.display = 'none';
+		sidebar.style.display    = 'flex';
+		switchSidebarTab(view);
+	}
+	localStorage.setItem('can_mobile_tab', view);
+}
+
+// ─── Toast notification ───────────────────────────────────────────────────────
+function showToast(message, color) {
+	let toast = document.getElementById('canToast');
+	if (!toast) {
+		toast = document.createElement('div');
+		toast.id = 'canToast';
+		toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);' +
+			'background:rgba(15,17,21,0.96);border:1px solid rgba(255,255,255,0.12);border-radius:24px;' +
+			'padding:10px 20px;font-size:13px;font-weight:600;color:#fff;z-index:9999;' +
+			'opacity:0;transition:all 200ms ease;pointer-events:none;backdrop-filter:blur(12px);';
+		document.body.appendChild(toast);
+	}
+	toast.style.borderColor = color || 'rgba(255,255,255,0.15)';
+	toast.style.color = color || '#fff';
+	toast.textContent = '✓ ' + message;
+	toast.style.opacity = '1';
+	toast.style.transform = 'translateX(-50%) translateY(0)';
+	if (toast._timer) clearTimeout(toast._timer);
+	toast._timer = setTimeout(() => {
+		toast.style.opacity = '0';
+		toast.style.transform = 'translateX(-50%) translateY(8px)';
+	}, 2400);
+}
+
+// ─── Header info bar (Zone B) ───────────────────────────────────────────────────────
+// Chip semantic rules:
+//   (none)  = inactive / unknown / off
+//   .lit    = true / active / connected
+//   .accent = attention / user-relevant mode / above threshold
+function updateHeaderInfoBar(can) {
+	var traffic = document.getElementById('infoTraffic');
+	var bitrate = document.getElementById('infoBitrate');
+	var mode    = document.getElementById('infoMode');
+	var engine  = document.getElementById('infoEngine');
+	var fx      = document.getElementById('infoFx');
+
+	// Traffic: lit = any traffic; accent = healthy rate (>5 fps)
+	if (traffic) {
+		var rxEl = document.getElementById('trafficRate');
+		var fps = rxEl ? rxEl.textContent.trim() : '';
+		var fpsNum = fps ? parseFloat(fps) : 0;
+		var isAny = fpsNum > 0;
+		var isHealthy = fpsNum >= 5;
+		traffic.textContent = isAny ? fps : 'Silent';
+		traffic.className = 'app-info-chip' + (isHealthy ? ' accent' : isAny ? ' lit' : '');
+	}
+	// Bitrate: lit when enabled and known
+	if (bitrate) {
+		var bk = can.bitrate ? (can.bitrate / 1000) + 'k' : '\u2014';
+		bitrate.textContent = bk;
+		bitrate.className = 'app-info-chip' + (can.bitrate && can.enabled ? ' lit' : '');
+	}
+	// Mode: lit = listen-only (participating passively); accent = active (transmitting)
+	if (mode) {
+		if (!can.enabled) {
+			mode.textContent = 'Disabled';
+			mode.className = 'app-info-chip';
+		} else if (can.listenOnly) {
+			mode.textContent = 'Listen-only';
+			mode.className = 'app-info-chip lit';
+		} else {
+			mode.textContent = 'Active';
+			mode.className = 'app-info-chip accent';
+		}
+	}
+	// Engine: lit = running; no modifier = off
+	if (engine) {
+		var on = can.engineRunning;
+		engine.textContent = on ? 'Engine On' : 'Engine Off';
+		engine.className = 'app-info-chip' + (on ? ' lit' : '');
+	}
+	// FX: no class = default Solid (0) or unknown; .accent = custom effect active
+	if (fx) {
+		var fxEl = document.getElementById('stripFxId');
+		var fxTxt = (fxEl && fxEl.textContent && fxEl.textContent !== '\u2014') ? fxEl.textContent.trim() : null;
+		var fxNum = fxTxt ? parseInt(fxTxt, 10) : 0;
+		fx.textContent = fxTxt ? 'FX\u00A0' + fxTxt : 'FX\u00A0\u2014';
+		fx.className = 'app-info-chip' + (fxNum > 0 ? ' accent' : '');
+	}
+}
+
+// ─── Mobile navigation sheet ──────────────────────────────────────────────────────
+var _navPrevFocus = null;
+function toggleNavSheet() {
+	var sheet = document.getElementById('navSheet');
+	var trigger = document.getElementById('titleTrigger');
+	var main = document.querySelector('.container');
+	if (!sheet) return;
+	if (sheet.classList.contains('open')) {
+		closeNavSheet();
+	} else {
+		// Guard: only save focus origin when coming from outside the sheet
+		if (!sheet.contains(document.activeElement)) {
+			_navPrevFocus = document.activeElement;
+		}
+		sheet.classList.add('open');
+		if (trigger) trigger.setAttribute('aria-expanded', 'true');
+		// aria-modal requires background to be inert
+		if (main) { main.inert = true; main.setAttribute('aria-hidden', 'true'); }
+		// Make all items tabbable while open; focus first after paint
+		requestAnimationFrame(function() {
+			var items = sheet.querySelectorAll('.app-nav-sheet-item');
+			items.forEach(function(el) { el.setAttribute('tabindex', '0'); });
+			(items[0] || sheet).focus({ preventScroll: true });
+		});
+		setTimeout(function() {
+			document.addEventListener('click', _closeNavOnOutside);
+			document.addEventListener('keydown', _navKeydown);
+		}, 10);
+	}
+}
+function closeNavSheet(restoreFocus) {
+	var sheet = document.getElementById('navSheet');
+	var trigger = document.getElementById('titleTrigger');
+	var main = document.querySelector('.container');
+	if (sheet) {
+		sheet.classList.remove('open');
+		sheet.querySelectorAll('.app-nav-sheet-item').forEach(function(el) {
+			el.setAttribute('tabindex', '-1');
+		});
+	}
+	// Restore background interaction
+	if (main) { main.inert = false; main.removeAttribute('aria-hidden'); }
+	if (trigger) trigger.setAttribute('aria-expanded', 'false');
+	document.removeEventListener('click', _closeNavOnOutside);
+	document.removeEventListener('keydown', _navKeydown);
+	if (restoreFocus !== false) {
+		var returnTo = trigger || _navPrevFocus;
+		if (returnTo && typeof returnTo.focus === 'function') {
+			returnTo.focus({ preventScroll: true });
+		}
+	}
+}
+function _closeNavOnOutside(e) {
+	var sheet = document.getElementById('navSheet');
+	var trigger = document.getElementById('titleTrigger');
+	if (sheet && !sheet.contains(e.target) && trigger && !trigger.contains(e.target)) {
+		closeNavSheet();
+	}
+}
+function _navKeydown(e) {
+	if (e.key === 'Escape') {
+		e.preventDefault();
+		closeNavSheet();
+	}
+}
+
+// Initialize when page loads
+if (document.readyState === 'loading') {
+	document.addEventListener('DOMContentLoaded', initCAN);
+} else {
+	initCAN();
+}
 </script>
+
+<!-- Mobile bottom navigation bar -->
+<div class="can-bot" id="canBot" role="tablist" aria-label="CAN navigation">
+	<button class="can-bot-btn active" data-view="frames" onclick="switchCanView('frames')" role="tab" aria-selected="true">
+		<span aria-hidden="true">&#x1F4CB;</span>
+		<span class="tab-label">Frames</span>
+	</button>
+	<button class="can-bot-btn" data-view="connection" onclick="switchCanView('connection')" role="tab" aria-selected="false">
+		<span aria-hidden="true">&#x1F4F6;</span>
+		<span class="tab-label">Status</span>
+	</button>
+	<button class="can-bot-btn" data-view="telemetry" onclick="switchCanView('telemetry')" role="tab" aria-selected="false">
+		<span aria-hidden="true">&#x1F4CA;</span>
+		<span class="tab-label">Telemetry</span>
+	</button>
+	<button class="can-bot-btn" data-view="config" onclick="switchCanView('config')" role="tab" aria-selected="false">
+		<span aria-hidden="true">&#x2699;&#xFE0F;</span>
+		<span class="tab-label">Config</span>
+	</button>
+</div>
 
 </body>
 </html>

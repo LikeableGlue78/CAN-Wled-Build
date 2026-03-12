@@ -2,13 +2,50 @@
 
 #include "wled.h"
 
+// Forward declarations for CAN data globals (defined in wled.h) - use C linkage
+extern "C" {
+  extern int16_t g_canRpm;
+  extern int16_t g_canSpeed;
+  extern int16_t g_canThrottle;
+}
+
+/*******************************************************************************
+ * QUICK TEST CONFIGURATION - Edit these values to test different CAN IDs/bytes
+ * Change these defines and recompile to test which CAN ID/byte contains your data
+ ******************************************************************************/
+
+// RPM Testing - uncomment ONE line to test different sources
+#define RPM_TEST_ID 0x316      // Default: Known working for Kia Optima
+//#define RPM_TEST_ID 0x2C0    // Alternative: Try if 0x316 doesn't work
+
+// Speed Testing - uncomment ONE line to test different sources
+// opendbc EMS11 (0x316 byte[6]) is authoritative for Kia/Hyundai 2011+
+#define SPEED_TEST_ID 0x316    // EMS11 - same frame as RPM, byte[6] = km/h directly
+//#define SPEED_TEST_ID 0x153  // ESP_Flags - byte[2] = km/h directly (fallback)
+//#define SPEED_TEST_ID 0x545  // EMS14 - 12-bit LE at bits 32-43 x0.0625 (advanced)
+
+// Throttle Testing - uncomment ONE line to test different sources
+// opendbc EMS12 (0x329 byte[6]) is authoritative for Kia/Hyundai 2011+
+#define THROTTLE_TEST_ID 0x329  // EMS12 - PV_AV_CAN: byte[6] * 100/256 = 0-100%
+//#define THROTTLE_TEST_ID 0x350  // Body control - byte varies, check raw display
+//#define THROTTLE_TEST_ID 0x260  // EMS16 - torque/load, not true TPS
+
+// Byte position testing - uncomment to override automatic byte scanning
+//#define RPM_TEST_BYTE 1        // Force RPM to use specific byte (0-7)
+//#define SPEED_TEST_BYTE 0      // Force Speed to use specific byte (0-7)
+//#define THROTTLE_TEST_BYTE 2   // Force Throttle to use specific byte (0-7)
+
+/*******************************************************************************
+ * END TEST CONFIGURATION
+ ******************************************************************************/
+
 // Only compile this usermod for ESP32 targets that support TWAI
 #if defined(ESP32) && !defined(CONFIG_IDF_TARGET_ESP32C2)
 
 #include "driver/twai.h"
 
 // Ring buffer size for storing received CAN frames
-#define CAN_FRAME_BUFFER_SIZE 32
+#define CAN_FRAME_BUFFER_SIZE 128
 
 // CAN Frame structure for storage
 struct CANFrame {
@@ -23,7 +60,7 @@ struct CANFrame {
 class UsermodCANTWAI : public Usermod {
   private:
     // Configuration variables
-    bool enabled = false;
+    bool enabled = true;  // Default to enabled
     bool initDone = false;
     bool twaiStarted = false;
     
@@ -56,6 +93,14 @@ class UsermodCANTWAI : public Usermod {
     uint8_t uiEffect = 0;         // 0=None, 1=RPM Pulse, 2=Speed Sweep (placeholders)
     uint8_t uiFrameCount = 20;    // Number of frames to show in UI
     
+    // Effect CAN IDs - use compile-time test defines from top of file
+    uint32_t rpmCanId = RPM_TEST_ID;
+    uint8_t rpmPid = 0;
+    uint32_t speedCanId = SPEED_TEST_ID;
+    uint8_t speedPid = 0;
+    uint32_t throttleCanId = THROTTLE_TEST_ID;
+    uint8_t throttlePid = 0;
+    
     // String constants stored in PROGMEM
     static const char _name[];
     static const char _enabled[];
@@ -70,6 +115,12 @@ class UsermodCANTWAI : public Usermod {
     static const char _filterExt[];
     static const char _filterId[];
     static const char _filterMask[];
+    static const char _rpmCanId[];
+    static const char _rpmPid[];
+    static const char _speedCanId[];
+    static const char _speedPid[];
+    static const char _throttleCanId[];
+    static const char _throttlePid[];
 
     uint16_t clampQueueLen(uint16_t value) {
       if (value < 8) return 8;
@@ -258,6 +309,188 @@ class UsermodCANTWAI : public Usermod {
       if (!enabled || !twaiStarted) return;
       
       readCANFrames();
+      
+      // Update global CAN data for effects (every loop iteration for responsiveness)
+      g_canRpm = calculateRpm();
+      g_canSpeed = calculateSpeed();
+      g_canThrottle = calculateThrottle();
+    }
+    
+    // *** PUBLIC API FOR EFFECTS ***
+    
+    // Check if CAN is active and receiving data
+    bool isActive() {
+      return enabled && twaiStarted;
+    }
+    
+    // Get the most recent frame matching a specific CAN ID
+    // Returns true if found, false if no matching frame in buffer
+    bool getFrameById(uint32_t canId, CANFrame& outFrame) {
+      if (!enabled || !twaiStarted || bufferCount == 0) return false;
+      
+      // Search backwards from most recent frame
+      for (int i = 0; i < bufferCount; i++) {
+        int idx = (bufferHead - 1 - i + CAN_FRAME_BUFFER_SIZE) % CAN_FRAME_BUFFER_SIZE;
+        if (frameBuffer[idx].id == canId) {
+          outFrame = frameBuffer[idx];
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // Get frame age in milliseconds (how long since it was received)
+    uint32_t getFrameAge(const CANFrame& frame) {
+      return millis() - frame.timestamp_ms;
+    }
+    
+    // Check if frame data is fresh (received within last N milliseconds)
+    bool isFrameFresh(const CANFrame& frame, uint32_t maxAgeMs = 1000) {
+      return getFrameAge(frame) < maxAgeMs;
+    }
+    
+    // Extract 8-bit value from frame data byte
+    uint8_t extractByte(const CANFrame& frame, uint8_t byteIndex) {
+      if (byteIndex >= frame.dlc || byteIndex >= 8) return 0;
+      return frame.data[byteIndex];
+    }
+    
+    // Extract 16-bit value from frame data (big-endian)
+    uint16_t extractUint16(const CANFrame& frame, uint8_t startByte) {
+      if (startByte + 1 >= frame.dlc || startByte >= 7) return 0;
+      return ((uint16_t)frame.data[startByte] << 8) | frame.data[startByte + 1];
+    }
+    
+    // Get total frames received
+    uint32_t getFramesReceived() {
+      return framesReceived;
+    }
+    
+    // Getters for effect CAN IDs
+    uint32_t getRpmCanId() const { return rpmCanId; }
+    uint8_t getRpmPid() const { return rpmPid; }
+    uint32_t getSpeedCanId() const { return speedCanId; }
+    uint8_t getSpeedPid() const { return speedPid; }
+    uint32_t getThrottleCanId() const { return throttleCanId; }
+    uint8_t getThrottlePid() const { return throttlePid; }
+    
+    // Calculate RPM from CAN frame (Kia Optima 2011 format)
+    int16_t calculateRpm() {
+      CANFrame frame;
+      if (getFrameById(rpmCanId, frame) && isFrameFresh(frame, 2000)) {
+        if (frame.dlc >= 4) {
+#ifdef RPM_TEST_BYTE
+          // Use specific byte for testing (0-100 direct or 0-255 scaled)
+          uint16_t raw = frame.data[RPM_TEST_BYTE];
+          if (raw <= 100) return raw * 80; // Assume 0-100% to 0-8000 RPM
+          return (raw * 8000) / 255; // Scale 0-255 to 0-8000 RPM
+#else
+          // opendbc EMS11 (0x316): signal N, start_bit=16, 16-bit little-endian, factor=0.25
+          // bytes[2] = low byte, bytes[3] = high byte; raw / 4 = RPM
+          // e.g. raw 0x94|0x0D = 0x0D94 = 3476, /4 = 869 RPM (confirmed idle)
+          uint16_t raw = (uint16_t)frame.data[2] | ((uint16_t)frame.data[3] << 8);
+          uint16_t rpm = raw / 4;
+
+          // Validate range (typical engine: 0-8000 RPM)
+          if (rpm <= 8000) return rpm;
+#endif
+        }
+      }
+      return -1; // No valid data
+    }
+    
+    // Calculate speed from CAN frame (Kia/Hyundai EMS11 format)
+    int16_t calculateSpeed() {
+      CANFrame frame;
+      if (getFrameById(speedCanId, frame) && isFrameFresh(frame, 2000)) {
+        // opendbc EMS11 (0x316): signal VS, start_bit=48, 8-bit, factor=1.0
+        // byte[6] = km/h directly (0x00 = 0, 0x64 = 100 km/h)
+        // Note: 0x316 is the default; if speedCanId is changed via UI,
+        // byte[6] is still read from whatever frame is configured.
+        if (frame.dlc >= 7) {
+#ifdef SPEED_TEST_BYTE
+          // Use specific byte for testing
+          uint8_t speed = frame.data[SPEED_TEST_BYTE];
+#else
+          uint8_t speed = frame.data[6];
+#endif
+          if (speed <= 250) return speed; // Sanity check (max ~250 km/h)
+        }
+      }
+      return -1; // No valid data
+    }
+    
+    // Calculate throttle from CAN frame (Kia/Hyundai EMS12 format)
+    int16_t calculateThrottle() {
+      CANFrame frame;
+      if (getFrameById(throttleCanId, frame) && isFrameFresh(frame, 2000)) {
+        // opendbc EMS12 (0x329): signal PV_AV_CAN, start_bit=48, 8-bit, factor=0.3906
+        // byte[6] * 100 / 256 gives 0-99% throttle (0 at idle, 99 at WOT)
+        // If throttleCanId is changed via UI, byte[6] is still read from the new frame.
+        if (frame.dlc >= 7) {
+#ifdef THROTTLE_TEST_BYTE
+          // Use specific byte for testing
+          uint8_t throttle = frame.data[THROTTLE_TEST_BYTE];
+          if (throttle <= 100) return throttle; // Direct 0-100%
+          return (throttle * 100) / 255; // Scale 0-255 to 0-100%
+#else
+          // PV_AV_CAN: byte[6] / 256 * 100 = throttle %
+          int16_t tps = (int16_t)((frame.data[6] * 100) / 256);
+          if (tps < 0)   tps = 0;
+          if (tps > 100) tps = 100;
+          return tps;
+#endif
+        }
+      }
+      return -1; // No valid data
+    }
+    
+    // Get raw frame data for debugging (returns hex string with individual bytes)
+    void getRawFrameData(uint32_t canId, char* output, size_t maxLen) {
+      CANFrame frame;
+      if (getFrameById(canId, frame)) {
+        // Show each byte individually for easier analysis
+        snprintf(output, maxLen, "[%d] ", frame.dlc);
+        for (int i = 0; i < frame.dlc && i < 8; i++) {
+          char hex[6];
+          snprintf(hex, sizeof(hex), "%02X ", frame.data[i]);
+          strncat(output, hex, maxLen - strlen(output) - 1);
+        }
+        // Also show as decimal for bytes that might be direct values
+        strncat(output, "| Dec: ", maxLen - strlen(output) - 1);
+        for (int i = 0; i < frame.dlc && i < 8; i++) {
+          char dec[8];
+          snprintf(dec, sizeof(dec), "%d ", frame.data[i]);
+          strncat(output, dec, maxLen - strlen(output) - 1);
+        }
+      } else {
+        snprintf(output, maxLen, "No frame");
+      }
+    }
+    
+    // Get list of unique CAN IDs currently in buffer (for debugging)
+    int getActiveIds(uint32_t* ids, int maxIds) {
+      if (!enabled || !twaiStarted || bufferCount == 0) return 0;
+      
+      int count = 0;
+      for (int i = 0; i < bufferCount && count < maxIds; i++) {
+        int idx = (bufferHead - 1 - i + CAN_FRAME_BUFFER_SIZE) % CAN_FRAME_BUFFER_SIZE;
+        uint32_t id = frameBuffer[idx].id;
+        
+        // Check if this ID is already in the list
+        bool found = false;
+        for (int j = 0; j < count; j++) {
+          if (ids[j] == id) {
+            found = true;
+            break;
+          }
+        }
+        
+        if (!found) {
+          ids[count++] = id;
+        }
+      }
+      return count;
     }
     
     // Add info to JSON /info endpoint
@@ -325,6 +558,40 @@ class UsermodCANTWAI : public Usermod {
       // Add UI effect setting
       can[F("uiEffect")] = uiEffect;
       can[F("uiPollRate")] = uiPollRate;
+      
+      // Add calculated stats for diagnostic display
+      can[F("calcRpm")] = calculateRpm();
+      can[F("calcSpeed")] = calculateSpeed();
+      can[F("calcThrottle")] = calculateThrottle();
+      
+      // Add raw frame data for debugging
+      char rawData[64];
+      getRawFrameData(rpmCanId, rawData, sizeof(rawData));
+      can[F("rawRpmFrame")] = rawData;
+      getRawFrameData(speedCanId, rawData, sizeof(rawData));
+      can[F("rawSpeedFrame")] = rawData;
+      getRawFrameData(throttleCanId, rawData, sizeof(rawData));
+      can[F("rawThrottleFrame")] = rawData;
+      
+      // Add buffer status and active IDs for debugging
+      can[F("bufferCount")] = bufferCount;
+      can[F("bufferSize")] = CAN_FRAME_BUFFER_SIZE;
+      
+      // Get list of active IDs currently in buffer
+      uint32_t activeIds[20];
+      int activeCount = getActiveIds(activeIds, 20);
+      JsonArray activeIdsArr = can.createNestedArray(F("activeIds"));
+      for (int i = 0; i < activeCount; i++) {
+        activeIdsArr.add(activeIds[i]);
+      }
+      
+      // Add effect CAN ID configuration
+      can[F("rpmCanId")] = rpmCanId;
+      can[F("rpmPid")] = rpmPid;
+      can[F("speedCanId")] = speedCanId;
+      can[F("speedPid")] = speedPid;
+      can[F("throttleCanId")] = throttleCanId;
+      can[F("throttlePid")] = throttlePid;
       
       // Add last few frames (only if enabled and started)
       if (!canLite && enabled && twaiStarted && bufferCount > 0) {
@@ -399,6 +666,27 @@ class UsermodCANTWAI : public Usermod {
             uiPollRate = newRate;
           }
         }
+        
+        // Check for effect CAN ID changes - validate before accepting
+        // Reject: zero, out-of-range (>0x7FF for 11-bit standard frames)
+        auto validCanId = [](uint32_t id) -> bool {
+          return (id > 0 && id <= 0x7FF);
+        };
+        if (can.containsKey(F("rpmCanId"))) {
+          uint32_t id = can[F("rpmCanId")] | 0;
+          if (validCanId(id)) rpmCanId = id;
+        }
+        if (can.containsKey(F("rpmPid"))) rpmPid = can[F("rpmPid")] | 0;
+        if (can.containsKey(F("speedCanId"))) {
+          uint32_t id = can[F("speedCanId")] | 0;
+          if (validCanId(id)) speedCanId = id;
+        }
+        if (can.containsKey(F("speedPid"))) speedPid = can[F("speedPid")] | 0;
+        if (can.containsKey(F("throttleCanId"))) {
+          uint32_t id = can[F("throttleCanId")] | 0;
+          if (validCanId(id)) throttleCanId = id;
+        }
+        if (can.containsKey(F("throttlePid"))) throttlePid = can[F("throttlePid")] | 0;
       }
     }
     
@@ -417,6 +705,12 @@ class UsermodCANTWAI : public Usermod {
       top[FPSTR(_filterExt)] = filterExt;
       top[FPSTR(_filterId)] = filterId;
       top[FPSTR(_filterMask)] = filterMask;
+      top[FPSTR(_rpmCanId)] = rpmCanId;
+      top[FPSTR(_rpmPid)] = rpmPid;
+      top[FPSTR(_speedCanId)] = speedCanId;
+      top[FPSTR(_speedPid)] = speedPid;
+      top[FPSTR(_throttleCanId)] = throttleCanId;
+      top[FPSTR(_throttlePid)] = throttlePid;
     }
     
     // Load configuration
@@ -436,7 +730,7 @@ class UsermodCANTWAI : public Usermod {
       uint32_t prevFilterId = filterId;
       uint32_t prevFilterMask = filterMask;
       
-      configComplete &= getJsonValue(top[FPSTR(_enabled)], enabled, false);
+      configComplete &= getJsonValue(top[FPSTR(_enabled)], enabled, true);
       configComplete &= getJsonValue(top[FPSTR(_bitrate)], bitrate, 500000);
       configComplete &= getJsonValue(top[FPSTR(_rxPin)], rxPin, (int8_t)4);
       configComplete &= getJsonValue(top[FPSTR(_txPin)], txPin, (int8_t)5);
@@ -448,6 +742,12 @@ class UsermodCANTWAI : public Usermod {
       configComplete &= getJsonValue(top[FPSTR(_filterExt)], filterExt, false);
       configComplete &= getJsonValue(top[FPSTR(_filterId)], filterId, (uint32_t)0);
       configComplete &= getJsonValue(top[FPSTR(_filterMask)], filterMask, (uint32_t)0x7FF);
+      configComplete &= getJsonValue(top[FPSTR(_rpmCanId)], rpmCanId, (uint32_t)RPM_TEST_ID);
+      configComplete &= getJsonValue(top[FPSTR(_rpmPid)], rpmPid, (uint8_t)0);
+      configComplete &= getJsonValue(top[FPSTR(_speedCanId)], speedCanId, (uint32_t)SPEED_TEST_ID);
+      configComplete &= getJsonValue(top[FPSTR(_speedPid)], speedPid, (uint8_t)0);
+      configComplete &= getJsonValue(top[FPSTR(_throttleCanId)], throttleCanId, (uint32_t)THROTTLE_TEST_ID);
+      configComplete &= getJsonValue(top[FPSTR(_throttlePid)], throttlePid, (uint8_t)0);
 
       if (filterExt) {
         filterId &= 0x1FFFFFFF;
@@ -478,6 +778,13 @@ class UsermodCANTWAI : public Usermod {
         } else if (!enabled && twaiStarted) {
           stopTWAI();
         }
+      }
+      
+      // Update global CAN data for effects (every loop iteration for responsiveness)
+      if (enabled && twaiStarted) {
+        g_canRpm = calculateRpm();
+        g_canSpeed = calculateSpeed();
+        g_canThrottle = calculateThrottle();
       }
       
       return configComplete;
@@ -538,6 +845,12 @@ const char UsermodCANTWAI::_filterEnabled[] PROGMEM = "filterEnabled";
 const char UsermodCANTWAI::_filterExt[] PROGMEM = "filterExt";
 const char UsermodCANTWAI::_filterId[] PROGMEM = "filterId";
 const char UsermodCANTWAI::_filterMask[] PROGMEM = "filterMask";
+const char UsermodCANTWAI::_rpmCanId[] PROGMEM = "rpmCanId";
+const char UsermodCANTWAI::_rpmPid[] PROGMEM = "rpmPid";
+const char UsermodCANTWAI::_speedCanId[] PROGMEM = "speedCanId";
+const char UsermodCANTWAI::_speedPid[] PROGMEM = "speedPid";
+const char UsermodCANTWAI::_throttleCanId[] PROGMEM = "throttleCanId";
+const char UsermodCANTWAI::_throttlePid[] PROGMEM = "throttlePid";
 
 // Create instance and register
 static UsermodCANTWAI usermodCANTWAI;

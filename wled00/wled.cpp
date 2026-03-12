@@ -2,6 +2,14 @@
 #include "wled.h"
 #include "wled_ethernet.h"
 #include "ota_update.h"
+
+// Ensure CAN globals are defined with C linkage
+extern "C" {
+  int16_t g_canRpm = -1;
+  int16_t g_canSpeed = -1;
+  int16_t g_canThrottle = -1;
+}
+
 #ifdef WLED_ENABLE_AOTA
   #define NO_OTA_PORT
   #include <ArduinoOTA.h>

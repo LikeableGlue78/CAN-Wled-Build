@@ -709,16 +709,28 @@ typedef class Send {
         uint8_t reserved : 4;
       };
     };
-  Send(int o) { Options = o; }
-  Send(bool d, bool b, bool a, bool h) {
-    Direct = d;
-    Button = b;
-    Alexa = a;
-    Hue = h;
-  }
+    Send(int o) { Options = o; }
+    Send(bool d, bool b, bool a, bool h) {
+      Direct = d;
+      Button = b;
+      Alexa = a;
+      Hue = h;
+    }
 } __attribute__ ((aligned(1), packed)) send_notification_t;
 WLED_GLOBAL receive_notification_t receiveN _INIT(0b01100111);
 WLED_GLOBAL send_notification_t    notifyG  _INIT(0b00001111);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+// CAN bus data (shared with effects via CAN usermod) - use C linkage to avoid name mangling
+WLED_GLOBAL int16_t g_canRpm      _INIT(-1);  // Engine RPM (-1 = no data)
+WLED_GLOBAL int16_t g_canSpeed    _INIT(-1);  // Vehicle speed in km/h (-1 = no data)
+WLED_GLOBAL int16_t g_canThrottle _INIT(-1);  // Throttle position 0-100% (-1 = no data)
+#ifdef __cplusplus
+}
+#endif
+
 #define receiveNotificationBrightness receiveN.Brightness
 #define receiveNotificationColor      receiveN.Color
 #define receiveNotificationEffects    receiveN.Effects

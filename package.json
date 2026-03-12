@@ -10,7 +10,9 @@
   "scripts": {
     "build": "node tools/cdata.js",
     "test": "node --test",
-    "dev": "nodemon -e js,html,htm,css,png,jpg,gif,ico,js -w tools/ -w wled00/data/ -x node tools/cdata.js"
+    "dev": "nodemon -e js,html,htm,css,png,jpg,gif,ico,js -w tools/ -w wled00/data/ -x node tools/cdata.js",
+    "mock": "nodemon --watch tools/mock --ext js tools/mock/server.js",
+    "mock:once": "node tools/mock/server.js"
   },
   "repository": {
     "type": "git",

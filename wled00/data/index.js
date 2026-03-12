@@ -14,6 +14,7 @@ var lastUpdate = 0;
 var segCount = 0, ledCount = 0, lowestUnused = 0, maxSeg = 0, lSeg = 0;
 var pcMode = false, pcModeA = false, lastw = 0, wW;
 var simplifiedUI = false;
+var nSliders = 5; // number of .sliderwrap elements inside #sliders (speed, intensity, c1, c2, c3)
 var tr = 7;
 var d = document;
 const ranges = RangeTouch.setup('input[type="range"]', {});
@@ -302,6 +303,7 @@ function onLoad()
 		}
 	})();
 	resetUtil();
+	lmInit(); // initialise layout mapper (loads localStorage settings)
 
 	d.addEventListener("visibilitychange", handleVisibilityChange, false);
 	//size();
@@ -900,6 +902,8 @@ function populateSegments(s)
 		gId("ledmap").classList.add('hide');
 	}
 	tooltip("#Segments");
+	_lm._segs = s.seg || []; // keep layout mapper in sync with current segment list
+	lmRefresh(); // refresh layout mapper canvas after segment list rebuilds
 }
 
 function populateEffects()
@@ -3466,3 +3470,529 @@ _C.addEventListener('touchstart', lock, false);
 _C.addEventListener('mouseout', move, false);
 _C.addEventListener('mouseup', move, false);
 _C.addEventListener('touchend', move, false);
+
+// ─── Strip Layout Mapper ─────────────────────────────────────────────────────
+// Opt-in visual strip placement tool in the Segments tab.
+// Default mode: standard WLED mapping (unchanged).
+// Layout mode: each segment's LEDs are spatially sampled from a virtual render
+//   strip based on the segment's 2D position on the canvas.
+// Settings are stored in localStorage and POSTed to /mock/layout for mock dev.
+
+const _lm = {
+  enabled:   false,
+  renderRes: 300,
+  strips:    {},     // "segId" → {x1,y1,x2,y2}  (normalised 0-1 in canvas space)
+  _segs:     [],     // current segment list, updated by populateSegments
+  _dirty:    false,  // true when canvas needs redraw but panel was hidden
+  _drag:     null,   // {id, which:'start'|'end'}
+  _sel:      null,   // selected seg id string
+  _cvs:      null,
+  _ctx:      null,
+  _live:     null,   // latest /json/live array: 650 hex strings, or null
+  _liveT:    null,   // setInterval handle for live polling
+};
+const LM_LS_KEY = 'wledLM';
+
+// ── Persist ──────────────────────────────────────────────────────────────────
+function lmLoad() {
+  try {
+    const d = JSON.parse(localStorage.getItem(LM_LS_KEY) || '{}');
+    _lm.enabled   = !!d.enabled;
+    _lm.renderRes = d.renderRes || 300;
+    _lm.strips    = d.strips    || {};
+  } catch(e) {}
+}
+
+function lmSave() {
+  const r = gId('lmRes');
+  if (r) _lm.renderRes = Math.max(60, Math.min(2000, parseInt(r.value) || 300));
+  localStorage.setItem(LM_LS_KEY, JSON.stringify({
+    enabled:   _lm.enabled,
+    renderRes: _lm.renderRes,
+    strips:    _lm.strips,
+  }));
+}
+
+// ── Public entry-points (called from HTML) ───────────────────────────────────
+function lmInit() {
+  lmLoad();
+  const cb = gId('lmOn');  if (cb) cb.checked = _lm.enabled;
+  const rv = gId('lmRes'); if (rv) rv.value   = _lm.renderRes;
+}
+
+function lmToggle() {
+  const b = gId('lmBody'), a = gId('lmArr');
+  if (!b) return;
+  const open = !b.classList.contains('hide');
+  if (open) {
+    b.classList.add('hide');
+    if (a) a.classList.remove('open');
+    _lmStopLive();
+  } else {
+    b.classList.remove('hide');
+    if (a) a.classList.add('open');
+    _lmInitCanvas();
+    _lm._dirty = false;
+    _lmStartLive();
+    // Re-push current strip layout to server every time panel opens
+    // (server state resets on restart; localStorage preserves client state)
+    if (_lm.enabled) lmApply();
+  }
+}
+
+function lmEnable(on) {
+  _lm.enabled = on;
+  lmSave();
+  lmApply();
+}
+
+function lmAutoFit() {
+  const segs = _lm._segs;
+  const n = Math.max(segs.length, 1);
+  segs.forEach((sg, idx) => {
+    const id  = String(sg.id != null ? sg.id : idx);
+    const y   = 0.15 + (idx + 0.5) / n * 0.80;
+    const mir = (_lm.strips[id] || {}).mir || false;
+    _lm.strips[id] = { x1: 0.02, y1: y, x2: 0.98, y2: y, mir };
+  });
+  lmSave();
+  lmApply();
+  _lmDraw();
+}
+
+function lmReset() {
+  _lm.strips = {};
+  _lmEnsureStrips();
+  lmSave();
+  lmApply();
+  _lmDraw();
+}
+
+function lmToggleMirror() {
+  if (_lm._sel === null) return;
+  const s = _lm.strips[_lm._sel];
+  if (!s) return;
+  s.mir = !s.mir;
+  lmSave();
+  lmApply();
+  _lmDraw();
+}
+
+function lmApply() {
+  fetch('/mock/layout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled: _lm.enabled, renderRes: _lm.renderRes, strips: _lm.strips }),
+  }).catch(() => {});
+}
+
+// Called by populateSegments to keep canvas in sync after segment list updates.
+function lmRefresh() {
+  _lmEnsureStrips();
+  const b = gId('lmBody');
+  if (!b || b.classList.contains('hide')) { _lm._dirty = true; return; }
+  if (!_lm._cvs) _lmInitCanvas();
+  else _lmDraw();
+}
+
+// ── Live LED colour polling ───────────────────────────────────────────────────
+// Runs while the panel is open; fetches /json/live at ~10 fps and redraws.
+function _lmStartLive() {
+  if (_lm._liveT) return;
+  // Fire immediately so first frame gets real colors without waiting 100 ms
+  const _poll = () => fetch('/json/live')
+    .then(r => r.json())
+    .then(d => { if (d && d.leds) { _lm._live = d.leds; _lmDraw(); } })
+    .catch(() => {});
+  _poll();
+  _lm._liveT = setInterval(_poll, 100);
+}
+
+function _lmStopLive() {
+  if (_lm._liveT) { clearInterval(_lm._liveT); _lm._liveT = null; }
+  _lm._live = null;
+}
+
+// ── Internal helpers ─────────────────────────────────────────────────────────
+function _lmEnsureStrips() {
+  const segs = _lm._segs;
+  const n    = Math.max(segs.length, 1);
+  segs.forEach((sg, idx) => {
+    const id = String(sg.id != null ? sg.id : idx);
+    if (!_lm.strips[id]) {
+      // y range 0.15–0.95: top ~15% is the live reference bar area
+      const y = 0.15 + (idx + 0.5) / n * 0.80;
+      _lm.strips[id] = { x1: 0.02, y1: y, x2: 0.98, y2: y, mir: false };
+    }
+  });
+}
+
+function _lmSegColor(idx) {
+  try {
+    const c = _lm._segs[idx].col[0];
+    if (c && (c[0] || c[1] || c[2])) return `rgb(${c[0]},${c[1]},${c[2]})`;
+  } catch(e) {}
+  const COLS = ['#ff9900','#00aaff','#00ff88','#ff4488','#ffff00','#aa44ff','#00ffcc','#ff6600'];
+  return COLS[idx % COLS.length];
+}
+
+function _lmSegLabel(idx) {
+  try {
+    const sg = _lm._segs[idx];
+    if (sg) return sg.n || ('Seg ' + sg.id);
+  } catch(e) {}
+  return 'Seg ' + idx;
+}
+
+function _lmInitCanvas() {
+  _lm._cvs = gId('lmCvs');
+  if (!_lm._cvs) return;
+  const cvs = _lm._cvs;
+  const rect = cvs.getBoundingClientRect();
+  const pr   = window.devicePixelRatio || 1;
+  // When panel is hidden getBoundingClientRect returns 0; fall back to offsetWidth or 380
+  const cssW = rect.width  > 4 ? rect.width  : (cvs.offsetWidth  || cvs.parentElement.offsetWidth || 380);
+  const cssH = rect.height > 4 ? rect.height : (cssW / 2.8);
+  cvs.width  = Math.max(60, Math.round(cssW * pr));
+  cvs.height = Math.max(20, Math.round(cssH * pr));
+  _lm._ctx = cvs.getContext('2d');
+  _lmEnsureStrips();
+  _lmBindEvents();
+  _lmDraw();
+}
+
+function _lmDraw() {
+  const cvs = _lm._cvs, ctx = _lm._ctx;
+  if (!cvs || !ctx) return;
+  const W    = cvs.width, H = cvs.height;
+  const pr   = window.devicePixelRatio || 1;
+  const live = _lm._live;  // hoisted — used by ref bar and strip loop
+  const segs = _lm._segs;
+
+  // Background
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid (full canvas)
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  for (let g = 1; g < 10; g++) {
+    const x = g / 10 * W, y = g / 10 * H;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // ── Live reference bar (top 10 %) ─────────────────────────────────────────
+  // Dim full-LED-array preview for spatial reference while arranging strips.
+  const REF_H = Math.round(H * 0.10);
+  ctx.fillStyle = 'rgba(8,12,20,0.88)';
+  ctx.fillRect(0, 0, W, REF_H);
+  if (live && live.length > 0) {
+    const tot  = live.length;
+    const dotW = W / tot;
+    for (let i = 0; i < tot; i++) {
+      const hex = live[i] || '000000';
+      const rv  = parseInt(hex.slice(0,2),16);
+      const gv  = parseInt(hex.slice(2,4),16);
+      const bv  = parseInt(hex.slice(4,6),16);
+      const b   = (rv + gv + bv) / 765;
+      ctx.globalAlpha = b > 0.01 ? Math.min(0.75, 0.28 + b * 0.55) : 0.09;
+      ctx.fillStyle   = b > 0.01 ? `rgb(${rv},${gv},${bv})` : '#0e0e0e';
+      if (b > 0.25) { ctx.shadowColor = `rgb(${rv},${gv},${bv})`; ctx.shadowBlur = b * 4 * pr; }
+      ctx.fillRect(i * dotW, 2 * pr, Math.ceil(dotW) + 1, REF_H - 3 * pr);
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur  = 0;
+  }
+  // Segment boundary markers + mini labels inside the ref bar
+  segs.forEach((sg, si) => {
+    const tot = live ? live.length : 650;
+    const col = _lmSegColor(si);
+    const rx1 = (sg.start / tot) * W;
+    const rx2 = (sg.stop  / tot) * W;
+    ctx.globalAlpha = 0.6;
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5 * pr; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(rx1, 0); ctx.lineTo(rx1, REF_H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rx2, 0); ctx.lineTo(rx2, REF_H); ctx.stroke();
+    ctx.font = `bold ${Math.round(7.5*pr)}px sans-serif`;
+    ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(_lmSegLabel(si), (rx1 + rx2) / 2, 2 * pr);
+    ctx.globalAlpha = 1;
+  });
+  ctx.font = `${Math.round(8*pr)}px sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';  ctx.fillText('LIVE', 4*pr, REF_H * 0.65);
+  ctx.textAlign = 'right'; ctx.fillText(`${(live||[]).length || 0}`, W - 4*pr, REF_H * 0.65);
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(0, REF_H); ctx.lineTo(W, REF_H); ctx.stroke();
+  ctx.textAlign = 'left';
+
+  segs.forEach((sg, idx) => {
+    const id  = String(sg.id != null ? sg.id : idx);
+    const s   = _lm.strips[id];
+    if (!s) return;
+    const x1 = s.x1 * W, y1 = s.y1 * H;
+    const x2 = s.x2 * W, y2 = s.y2 * H;
+    const col   = _lmSegColor(idx);
+    const isSel = (_lm._sel === id);
+
+    // ── LED strip visualization ─────────────────────────────────────────────
+    const nLeds = (sg.stop || 0) - (sg.start || 0);
+    const nDots = Math.min(nLeds, 120);   // higher cap → denser colour fidelity
+    const Rdot  = 4 * pr;
+    const dx = x2 - x1, dy = y2 - y1;
+
+    // Dark rail behind the LED dots
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth   = Rdot * 2.6;
+    ctx.lineCap     = 'round';
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.lineCap = 'butt';
+
+		// Per-LED glow dots
+		// When the strip is mirrored we visualise the physical left/right halves:
+		//  - main/top rail shows the left half mapped across the full preview
+		//  - mirror/bottom rail shows the right half, reversed (mirrored)
+		ctx.shadowBlur = 0;
+		for (let d = 0; d < nDots; d++) {
+			const t  = nDots > 1 ? d / (nDots - 1) : 0;
+			const px = x1 + dx * t, py = y1 + dy * t;
+			let dotCol = col, bri = 0.55;
+
+			if (live) {
+				// If mirrored, map the main/top rail to the left half of the physical strip
+				let frac = s.mir ? (t * 0.5) : t; // 0..0.5 → left half when mirrored
+				const ledIdx = (sg.start || 0) + Math.min(Math.round(frac * (nLeds - 1)), nLeds - 1);
+				const hex = live[ledIdx];
+				if (hex) {
+					const rv = parseInt(hex.slice(0,2),16);
+					const gv = parseInt(hex.slice(2,4),16);
+					const bv = parseInt(hex.slice(4,6),16);
+					bri = (rv + gv + bv) / 765;
+					dotCol = bri > 0.01 ? `rgb(${rv},${gv},${bv})` : '#0d0d0d';
+				}
+			}
+
+			ctx.globalAlpha = live ? 1 : 0.6;
+			if (bri > 0.12) {
+				ctx.shadowColor = dotCol;
+				ctx.shadowBlur  = bri * 14 * pr;
+			}
+			ctx.beginPath();
+			ctx.arc(px, py, Rdot, 0, Math.PI * 2);
+			ctx.fillStyle = dotCol;
+			ctx.fill();
+			if (bri > 0.12) ctx.shadowBlur = 0;
+		}
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+
+    // Selection highlight (thin dashed ring over the strip)
+    if (isSel) {
+      ctx.setLineDash([5*pr, 3*pr]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth   = 1.5 * pr;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // ── Mirror bar ────────────────────────────────────────────────────────────────
+    if (s.mir) {
+      // Perpendicular unit vector × gap (points “below” the strip direction)
+      const len    = Math.hypot(dx, dy) || 1;
+      const mirGap = 16 * pr;
+      const nx = -dy / len * mirGap;
+      const ny =  dx / len * mirGap;
+      const mx1m = x1 + nx, my1m = y1 + ny;
+      const mx2m = x2 + nx, my2m = y2 + ny;
+
+      // Dark rail
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth   = Rdot * 2.4;
+      ctx.lineCap     = 'round';
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(mx1m, my1m); ctx.lineTo(mx2m, my2m); ctx.stroke();
+      ctx.lineCap = 'butt';
+
+      // Reversed dots — sample live data in reverse order
+      ctx.shadowBlur = 0;
+			for (let d = 0; d < nDots; d++) {
+				const t   = nDots > 1 ? d / (nDots - 1) : 0;
+				const mpx = mx1m + (mx2m - mx1m) * t;
+				const mpy = my1m + (my2m - my1m) * t;
+				let dotCol = col, bri = 0.4;
+
+				if (live) {
+					// Map mirror rail to the right half of the physical strip
+					// map t (0..1) → frac (0.5..1) and use that index directly
+										const frac = 0.5 + t * 0.5;
+										const srcIdx = Math.min(Math.round(frac * (nLeds - 1)), nLeds - 1);
+										// If segment effect mirroring is enabled (`sg.mi`), the live
+										// buffer already contains mirrored data — show the right-half
+										// in ascending order. Otherwise reverse the right-half index
+										// so the bottom rail reads left→right in the preview.
+										const srcAbs = (sg.mi)
+											? (sg.start || 0) + srcIdx
+											: (sg.start || 0) + (nLeds - 1 - srcIdx);
+										const hex = live[srcAbs];
+					if (hex) {
+						const rv2 = parseInt(hex.slice(0,2),16);
+						const gv2 = parseInt(hex.slice(2,4),16);
+						const bv2 = parseInt(hex.slice(4,6),16);
+						bri = (rv2 + gv2 + bv2) / 765;
+						dotCol = bri > 0.01 ? `rgb(${rv2},${gv2},${bv2})` : '#0d0d0d';
+					}
+				}
+
+				ctx.globalAlpha = live ? 0.72 : 0.42;
+				if (bri > 0.12) { ctx.shadowColor = dotCol; ctx.shadowBlur = bri * 9 * pr; }
+				ctx.beginPath();
+				ctx.arc(mpx, mpy, Rdot * 0.82, 0, Math.PI * 2);
+				ctx.fillStyle = dotCol;
+				ctx.fill();
+				if (bri > 0.12) ctx.shadowBlur = 0;
+			}
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur  = 0;
+
+      // Fold-connector dashes at each end
+      ctx.setLineDash([3*pr, 3*pr]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+      ctx.lineWidth   = 1 * pr;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(mx1m, my1m); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(mx2m, my2m); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // ⟺ centred on mirror bar
+      ctx.font          = `bold ${Math.round(10*pr)}px sans-serif`;
+      ctx.fillStyle     = 'rgba(160,210,255,0.75)';
+      ctx.textAlign     = 'center';
+      ctx.textBaseline  = 'middle';
+      ctx.fillText('⟺', (mx1m + mx2m) / 2, (my1m + my2m) / 2);
+    }
+
+    // Endpoints: filled circle
+    const R = 7 * pr;
+    [[x1, y1, 'start'], [x2, y2, 'end']].forEach(([hx, hy, which]) => {
+      ctx.beginPath(); ctx.arc(hx, hy, R, 0, Math.PI*2);
+      ctx.fillStyle = col; ctx.fill();
+      ctx.strokeStyle = isSel ? '#fff' : 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 2 * pr; ctx.stroke();
+      if (which === 'end') { // square marker distinguishes end
+        ctx.fillStyle = '#000';
+        ctx.fillRect(hx - 3*pr, hy - 3*pr, 6*pr, 6*pr);
+      }
+    });
+
+    // Label centred above midpoint — append ⟺ when mirrored
+    const mx = (x1+x2)/2, my = (y1+y2)/2;
+    ctx.font = `${Math.round(11*pr)}px sans-serif`;
+    ctx.fillStyle = isSel ? '#fff' : 'rgba(255,255,255,0.75)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(_lmSegLabel(idx) + (s.mir ? ' ⟺' : ''), mx, my - 10*pr);
+  });
+
+  // Status line for selected strip
+  const selEl = gId('lmSel');
+  if (selEl) {
+    if (_lm._sel !== null) {
+      const s   = _lm.strips[_lm._sel];
+      const idx = segs.findIndex(sg => String(sg.id != null ? sg.id : 0) === _lm._sel);
+      selEl.textContent = s
+        ? `${_lmSegLabel(idx)}${s.mir ? ' ⟺ mirrored' : ''}  (${s.x1.toFixed(3)}, ${s.y1.toFixed(3)}) → (${s.x2.toFixed(3)}, ${s.y2.toFixed(3)})`
+        : '';
+    } else {
+      selEl.textContent = _lm.enabled ? 'Layout mapping active — drag endpoints to reposition strips' : 'Standard mapping (layout mapping off)';
+    }
+  }
+  // Sync Mirror button state to selected strip
+  const mirBtn = gId('lmMirBtn');
+  if (mirBtn) {
+    const selStrip = _lm._sel !== null ? _lm.strips[_lm._sel] : null;
+    mirBtn.disabled    = !selStrip;
+    mirBtn.textContent = selStrip && selStrip.mir ? 'Unmirror' : 'Mirror';
+  }
+}
+
+function _lmBindEvents() {
+  const cvs = _lm._cvs;
+  if (!cvs || cvs._lmBound) return;
+  cvs._lmBound = true;
+  const pr = () => window.devicePixelRatio || 1;
+  const HIT = () => 13 * pr();
+
+  function evPos(e) {
+    const r   = cvs.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return {
+      x: (src.clientX - r.left) * pr(),
+      y: (src.clientY - r.top)  * pr(),
+    };
+  }
+
+  function hitTest(px, py) {
+    const W = cvs.width, H = cvs.height;
+    const segs = _lm._segs;
+    // iterate in reverse so topmost (last drawn) is hit first
+    for (let idx = segs.length - 1; idx >= 0; idx--) {
+      const sg = segs[idx];
+      const id = String(sg.id != null ? sg.id : idx);
+      const s  = _lm.strips[id];
+      if (!s) continue;
+      if (Math.hypot(px - s.x2*W, py - s.y2*H) < HIT()) return { id, which: 'end' };
+      if (Math.hypot(px - s.x1*W, py - s.y1*H) < HIT()) return { id, which: 'start' };
+    }
+    return null;
+  }
+
+  function onDown(e) {
+    e.preventDefault(); // always block scroll/tab-swipe for any canvas interaction
+    const { x, y } = evPos(e);
+    const hit = hitTest(x, y);
+    if (hit) {
+      _lm._drag = hit;
+      _lm._sel  = hit.id;
+    } else {
+      _lm._sel = null;
+    }
+    _lmDraw();
+  }
+
+  function onMove(e) {
+    e.preventDefault(); // always block page scroll/swipe during canvas move
+    if (!_lm._drag) return;
+    const { x, y } = evPos(e);
+    const s = _lm.strips[_lm._drag.id];
+    if (!s) return;
+    let nx = Math.max(0, Math.min(1, x / cvs.width));
+    let ny = Math.max(0, Math.min(1, y / cvs.height));
+    // Shift = snap to nearest 10 % grid (matches drawn grid lines)
+    if (e.shiftKey) { nx = Math.round(nx * 10) / 10; ny = Math.round(ny * 10) / 10; }
+    if (_lm._drag.which === 'start') { s.x1 = nx; s.y1 = ny; }
+    else                             { s.x2 = nx; s.y2 = ny; }
+    _lmDraw();
+  }
+
+  function onUp() {
+    if (_lm._drag) { lmSave(); lmApply(); }
+    _lm._drag = null;
+  }
+
+  cvs.addEventListener('mousedown',  onDown, { passive: false });
+  cvs.addEventListener('mousemove',  onMove, { passive: false });
+  cvs.addEventListener('mouseup',    onUp);
+  cvs.addEventListener('touchstart', onDown, { passive: false });
+  cvs.addEventListener('touchmove',  onMove, { passive: false });
+  cvs.addEventListener('touchend',   onUp);
+
+  // Re-initialise canvas size on window resize
+  window.addEventListener('resize', () => {
+    const b = gId('lmBody');
+    if (!b || b.classList.contains('hide')) return;
+    _lm._cvs._lmBound = false; // allow rebind after resize
+    _lmInitCanvas();
+  });
+} 

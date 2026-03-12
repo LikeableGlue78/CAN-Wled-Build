@@ -14,6 +14,13 @@
 #include "FX.h"
 #include "fcn_declare.h"
 
+// Forward declarations for CAN data globals (defined in wled.h) - use C linkage
+extern "C" {
+  extern int16_t g_canRpm;
+  extern int16_t g_canSpeed;
+  extern int16_t g_canThrottle;
+}
+
 #define FX_FALLBACK_STATIC { mode_static(); return; }
 
 #if !(defined(WLED_DISABLE_PARTICLESYSTEM2D) && defined(WLED_DISABLE_PARTICLESYSTEM1D))
@@ -10718,6 +10725,483 @@ static const char _data_FX_MODE_PS_SPRINGY[] PROGMEM = "PS Springy@Stiffness,Dam
 
 #endif // WLED_DISABLE_PARTICLESYSTEM1D
 
+
+///////////////////////////
+// CAN Bus Driven FX     //
+///////////////////////////
+
+#if defined(ESP32) && !defined(CONFIG_IDF_TARGET_ESP32C2) && defined(USERMOD_CAN_TWAI)
+
+// CANFrame struct matches usermod definition
+struct CANFrame {
+  uint32_t id;
+  uint8_t dlc;
+  uint8_t data[8];
+  bool extended;
+  bool rtr;
+  uint32_t timestamp_ms;
+};
+
+// Helper functions to access usermod without including header
+// Uses reinterpret_cast to call methods - relies on USERMOD_ID_CAN_TWAI lookup returning correct type
+inline bool CAN_getFrameById(Usermod* um, uint32_t canId, CANFrame& outFrame) {
+  // Method signature: bool getFrameById(uint32_t canId, CANFrame& outFrame)
+  typedef bool (*MethodPtr)(void*, uint32_t, CANFrame&);
+  void** vtable = *(void***)um;
+  MethodPtr method = reinterpret_cast<MethodPtr>(vtable[10]);  // Adjust offset if needed
+  return method(um, canId, outFrame);
+}
+
+inline bool CAN_isFrameFresh(Usermod* um, const CANFrame& frame, uint32_t maxAgeMs) {
+  // Method signature: bool isFrameFresh(const CANFrame& frame, uint32_t maxAgeMs)
+  typedef bool (*MethodPtr)(void*, const CANFrame&, uint32_t);
+  void** vtable = *(void***)um;
+  MethodPtr method = reinterpret_cast<MethodPtr>(vtable[11]);  // Adjust offset if needed
+  return method(um, frame, maxAgeMs);
+}
+
+inline bool CAN_isActive(Usermod* um) {
+  // Method signature: bool isActive()
+  typedef bool (*MethodPtr)(void*);
+  void** vtable = *(void***)um;
+  MethodPtr method = reinterpret_cast<MethodPtr>(vtable[9]);  // Adjust offset if needed
+  return method(um);
+}
+
+// Access member variables at fixed offsets (fragile but necessary)
+inline uint32_t CAN_getRpmCanId(Usermod* um) {
+  // rpmCanId is at offset after other member variables
+  // Base Usermod ~16 bytes + our members...
+  // Approximate offset - may need adjustment
+  return *(uint32_t*)((uint8_t*)um + 88);
+}
+
+inline uint8_t CAN_getRpmPid(Usermod* um) {
+  return *(uint8_t*)((uint8_t*)um + 92);
+}
+
+inline uint32_t CAN_getSpeedCanId(Usermod* um) {
+  return *(uint32_t*)((uint8_t*)um + 96);
+}
+
+inline uint8_t CAN_getSpeedPid(Usermod* um) {
+  return *(uint8_t*)((uint8_t*)um + 100);
+}
+
+inline uint32_t CAN_getThrottleCanId(Usermod* um) {
+  return *(uint32_t*)((uint8_t*)um + 104);
+}
+
+inline uint8_t CAN_getThrottlePid(Usermod* um) {
+  return *(uint8_t*)((uint8_t*)um + 108);
+}
+
+// CAN effect implementations using usermod lookup
+static void mode_can_rpm_pulse(void) {
+  if (SEGLEN <= 1) { SEGMENT.fill(SEGCOLOR(0)); return; }
+
+  uint16_t rpm = (g_canRpm >= 0) ? (uint16_t)g_canRpm : 0;
+  uint8_t  rpmFrac8 = (uint8_t)((uint32_t(constrain((int)rpm, 0, 8000)) * 255U) / 8000U);
+  // Palette mapping mode (c1 slider, 3 zones):
+  //   0-84  = Value:    all lit pixels are the same RPM-mapped palette color
+  //   85-169 = Gradient: palette spreads across the lit bar section only
+  //   170-255 = Strip:   palette maps across the full strip width (default)
+  uint8_t palMode = SEGMENT.custom1 / 85U;  // litExact256 = SEGLEN * rpm/8000 in 8.8 fixed point
+  uint32_t litExact256 = (uint32_t(SEGLEN) * uint32_t(constrain((int)rpm, 0, 8000)) * 256U) / 8000U;
+  uint16_t litFull     = (uint16_t)(litExact256 >> 8);    // whole pixels always ON
+  uint8_t  frac8       = (uint8_t)(litExact256 & 0xFFU);  // fractional part 0-255
+
+  // Directional dither zone: 5 pixels ahead of the solid edge.
+  // Probability halves each step further ahead — aggressive directional falloff.
+  // Brightness fades linearly across the zone ("trail fade out").
+  // Hash fires every frame for crisp, rapid shimmer.
+  const uint8_t DZONE = 5U;
+  for (unsigned i = 0; i < SEGLEN; i++) {
+    if (i < litFull) {
+      uint8_t palIdx;
+      if      (palMode == 0) palIdx = rpmFrac8;
+      else if (palMode == 1) palIdx = litFull > 0 ? (uint8_t)((uint32_t(i) * 255U) / litFull) : 0;
+      else                   palIdx = (uint8_t)((uint32_t(i) * 255U) / SEGLEN);
+      uint8_t bright = SEGMENT.intensity;
+      if (SEGMENT.option1) { // scale brightness by rpm fraction when toggle enabled
+        bright = (uint8_t)((uint32_t(bright) * rpmFrac8) >> 8);
+      }
+      SEGMENT.setPixelColor(i, color_fade(SEGMENT.color_from_palette(palIdx, true, PALETTE_SOLID_WRAP, 0), bright));
+    } else {
+      int ahead = (int)i - (int)litFull;
+      if (ahead < (int)DZONE) {
+        uint8_t prob    = (uint8_t)((uint32_t)frac8 >> ahead);
+        uint32_t h      = ((uint32_t)i * 2654435761U) ^ (SEGENV.call * 2246822519U);
+        h ^= h >> 16;
+        if ((uint8_t)(h >> 24) < prob) {
+          uint8_t zoneBri = (uint8_t)((uint32_t(SEGMENT.intensity) * (DZONE - (unsigned)ahead)) / DZONE);
+          uint8_t edgeIdx;
+          if      (palMode == 0) edgeIdx = rpmFrac8;
+          else if (palMode == 1) edgeIdx = 255U;
+          else                   edgeIdx = (uint8_t)((uint32_t(litFull) * 255U) / SEGLEN);
+          SEGMENT.setPixelColor(i, color_fade(SEGMENT.color_from_palette(edgeIdx, true, PALETTE_SOLID_WRAP, 0), zoneBri));
+        } else {
+          SEGMENT.setPixelColor(i, color_fade(SEGCOLOR(1), 32));
+        }
+      } else {
+        SEGMENT.setPixelColor(i, color_fade(SEGCOLOR(1), 32));
+      }
+    }
+  }
+}
+
+static void mode_can_speed_color(void) {
+  if (SEGLEN <= 1) {
+    SEGMENT.fill(SEGCOLOR(0));
+    return;
+  }
+  
+  // Get live CAN speed data
+  uint16_t speed = (g_canSpeed >= 0) ? g_canSpeed : 0;
+  uint8_t  spd8  = (uint8_t)((uint32_t(constrain((int)speed, 0, 200)) * 255U) / 200U);
+  // Pal Map modes: 0=Value, 1=Bar-Gradient, 2=Strip-Gradient
+  uint8_t palMode219 = SEGMENT.custom1 / 85U;
+
+  // Speed bar: palette gradient fills as bar grows with speed
+  uint16_t speedPercent = constrain((speed * 100) / 200, 0, 100);
+  uint16_t litLeds = (SEGLEN * speedPercent) / 100;
+
+  for (unsigned i = 0; i < SEGLEN; i++) {
+    if (i < litLeds) {
+      uint8_t palIdx;
+      if      (palMode219 == 0) palIdx = spd8;
+      else if (palMode219 == 1) palIdx = litLeds > 0 ? (uint8_t)((uint32_t(i) * 255U) / litLeds) : 0;
+      else                      palIdx = (uint8_t)((uint32_t(i) * 255U) / SEGLEN);
+      SEGMENT.setPixelColor(i, color_fade(SEGMENT.color_from_palette(palIdx, true, PALETTE_SOLID_WRAP, 0), SEGMENT.intensity));
+    } else {
+      SEGMENT.setPixelColor(i, color_fade(SEGCOLOR(1), 32));
+    }
+  }
+}
+
+static void mode_can_throttle(void) {
+  if (SEGLEN <= 1) { SEGMENT.fill(SEGCOLOR(0)); return; }
+
+  uint16_t throttle = (g_canThrottle >= 0) ? (uint16_t)g_canThrottle : 0;
+  uint8_t  thr8_val = (uint8_t)((uint32_t(constrain((int)throttle, 0, 100)) * 255U) / 100U);
+  // Pal Map modes: 0=Value, 1=Bar-Gradient, 2=Strip-Gradient
+  uint8_t palMode220 = SEGMENT.custom1 / 85U;
+
+  // Throttle bar: palette gradient fills as bar grows with throttle position
+  uint16_t litLeds = (uint32_t(SEGLEN) * (uint32_t)throttle) / 100;
+
+  for (unsigned i = 0; i < SEGLEN; i++) {
+    if (i < litLeds) {
+      uint8_t palIdx;
+      if      (palMode220 == 0) palIdx = thr8_val;
+      else if (palMode220 == 1) palIdx = litLeds > 0 ? (uint8_t)((uint32_t(i) * 255U) / litLeds) : 0;
+      else                      palIdx = (uint8_t)((uint32_t(i) * 255U) / SEGLEN);
+      SEGMENT.setPixelColor(i, color_fade(SEGMENT.color_from_palette(palIdx, true, PALETTE_SOLID_WRAP, 0), SEGMENT.intensity));
+    } else {
+      SEGMENT.setPixelColor(i, color_fade(SEGCOLOR(1), 32));
+    }
+  }
+}
+
+static void mode_can_speed_noise(void) {
+  if (SEGLEN <= 1) { SEGMENT.fill(0); return; }
+
+  uint16_t speed    = (g_canSpeed >= 0) ? (uint16_t)g_canSpeed : 0;
+  uint8_t  baseHue  = (uint8_t)map(constrain((int)speed, 0, 200), 0, 200, 160, 0);
+  uint8_t  speedGain = (uint8_t)map(constrain((int)speed, 0, 200), 0, 200, 0, SEGMENT.intensity);
+  // Pal Map modes: 0=Value (speed-only color), 1=Spatial+Noise (default), 2=Animated-scroll
+  uint8_t palMode221 = SEGMENT.custom1 / 85U;
+
+  // Gentle drift: very low multiplier so blobs morph rather than translate
+  SEGENV.step += (1U + (SEGMENT.speed >> 3));
+
+  for (unsigned i = 0; i < SEGLEN; i++) {
+    // scale=150 → ~1 Perlin period every ~437 LEDs → 5-7 fat blobs across 300.
+    // 2-arg perlin16(x, z): purely 1D spatial + time evolution, no diagonal alias.
+    uint32_t real_x = uint32_t(i) * 150U;
+    uint32_t real_z = SEGENV.step * 2U;
+    uint8_t  noise  = perlin16(real_x, real_z) >> 8;
+
+    // Soft threshold at 41% (105/255): keeps generous black gaps between blobs.
+    if (noise < 105 || speedGain < 4) {
+      SEGMENT.setPixelColor(i, 0);
+    } else {
+      // Remap [105,255] → [0,255] then cubic shaping for smooth rounded blobs.
+      uint16_t above  = uint16_t(noise - 105) * 255U / 150U;        // linear [0,255]
+      uint16_t sq     = uint16_t(above) * above >> 8;                // x²
+      uint8_t  shaped = uint8_t(uint16_t(sq) * above >> 8);         // x³ — very soft toe
+      uint8_t  bright = uint8_t(uint16_t(shaped) * speedGain >> 8);
+
+      if (bright < 4) {
+        SEGMENT.setPixelColor(i, 0);
+      } else {
+        // Hue variation ±3 palette steps from noise for depth
+        uint8_t varHue = uint8_t(int(baseHue) + int(noise >> 6) - 2);
+        uint8_t palIdx;
+        if      (palMode221 == 0) palIdx = baseHue;           // speed-only, no spatial variation
+        else if (palMode221 == 1) palIdx = varHue;             // spatial + noise (default)
+        else                      palIdx = uint8_t(varHue + uint8_t(SEGENV.step >> 2)); // animated scroll
+        SEGMENT.setPixelColor(i, color_fade(SEGMENT.color_from_palette(palIdx, true, PALETTE_SOLID_WRAP, 0), bright));
+      }
+    }
+  }
+}
+
+// ─── CAN Throttle Meteor ─────────────────────────────────────────────────────
+// Meteor head tracks throttle position. Trail always extends behind the direction
+// of travel (bidirectional). Trail length grows dynamically with how fast the
+// throttle is changing. Cubic fade + white-hot tip add detail.
+//   Slot 1: background glow (default black)
+//   Slot 2: trail-tip tint at full depth
+static void mode_can_throttle_meteor(void) {
+  if (SEGLEN <= 1) { SEGMENT.fill(0); return; }
+
+  uint16_t thr   = (g_canThrottle >= 0) ? (uint16_t)g_canThrottle : 0;
+  uint8_t  thr8  = (uint8_t)map(constrain((int)thr, 0, 100), 0, 100, 0, 255);
+  uint16_t headPos = (uint32_t(SEGLEN - 1) * thr8) / 255U;
+
+  // ── Velocity tracking ──────────────────────────────────────────────────────
+  // SEGENV.aux0 = previous headPos
+  // SEGENV.aux1 = speed magnitude (fast-attack, fast-decay envelope)
+  // SEGENV.step bit 0 = trail direction (0=lower idx, 1=higher idx)
+  int16_t rawVel = (SEGENV.call == 0) ? 0 : ((int16_t)headPos - (int16_t)SEGENV.aux0);
+  uint8_t absRaw = (rawVel < 0) ? (uint8_t)(-rawVel) : (uint8_t)(rawVel);
+  // Fast-attack (instant snap to new speed), fast-decay (halve every frame → ~5 frames to collapse)
+  uint8_t speed  = (uint8_t)SEGENV.aux1;
+  speed = (absRaw > speed) ? absRaw : (uint8_t)(speed >> 1);  // >>1 = 0.5x per frame
+
+  if      (rawVel > 0) SEGENV.step &= ~1u;  // moving up   → trail at lower idx
+  else if (rawVel < 0) SEGENV.step |=  1u;  // moving down → trail at higher idx
+  bool trailAtLower = !(SEGENV.step & 1u);
+
+  // ── Dynamic trail length ───────────────────────────────────────────────────
+  // ix amplifies how much velocity stretches the trail (no base floor).
+  // At rest (speed=0) only 4 shoulder pixels remain; trail collapses fully.
+  uint16_t velMult  = uint16_t(SEGMENT.speed) * 12U / 255U;      // 0–12, sx=speed sensitivity
+  uint16_t ixScale  = 1U + (unsigned)SEGMENT.intensity / 64U;     // 1–4, ix=length sensitivity
+  uint16_t trailLen = min((uint16_t)(SEGLEN - 1U),
+                          (uint16_t)(4U + (uint16_t)speed * velMult * ixScale));
+
+  // ── Colors ─────────────────────────────────────────────────────────────────
+  // Pal Map modes: 0=Value (thr8 position), 1=Spatial (strip gradient), 2=Animated-scroll
+  //   NOTE: c1=Smooth (dither) is reused here implicitly: mode shares slider with dither.
+  //   A separate read for palMode is taken from the same c1 but interpreted differently.
+  //   To keep smooth working, palMode thresholds are above 170 so smooth=0-84=default dither.
+  uint8_t palMode222 = SEGMENT.custom1 / 85U;
+  // throttle 0→100% maps to palette position 0→255
+  uint8_t  pal222Idx = (palMode222 == 0) ? thr8
+                     : (palMode222 == 1) ? (uint8_t)((uint32_t(headPos) * 255U) / SEGLEN)
+                     : uint8_t(thr8 + uint8_t(SEGENV.call >> 2));  // mode 2: thr + slow drift
+  uint32_t headColor = SEGMENT.color_from_palette(pal222Idx, true, PALETTE_SOLID_WRAP, 0);
+  uint32_t hotTip   = color_blend(headColor, 0xFFFFFFU, 160);  // near-white tip
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  for (unsigned i = 0; i < SEGLEN; i++) {
+    if (i == headPos) {
+      SEGMENT.setPixelColor(i, color_fade(hotTip, 255));
+    } else {
+      int dist = trailAtLower ? ((int)headPos - (int)i)
+                              : ((int)i        - (int)headPos);
+      if (dist > 0 && dist <= (int)trailLen) {
+        // Quadratic brightness: near-full close to head, smooth fade to black.
+        // Cubic dither density: solid near head, sparse at tail.
+        uint8_t d8      = (uint8_t)((uint32_t(dist) * 255U) / trailLen);
+        uint8_t inv     = 255U - d8;
+        uint8_t dens    = (uint8_t)((uint32_t(inv) * inv * inv) >> 16);
+        uint32_t h      = ((uint32_t)i * 2654435761U) ^ ((SEGENV.call >> 2) * 2246822519U);
+        h ^= h >> 16;
+        uint8_t rng     = (uint8_t)(h >> 24);
+        uint8_t adjDens = (uint8_t)min(255u, (unsigned)dens + (unsigned)SEGMENT.custom1);
+        if (rng < adjDens) {
+          // inv² gives smooth, wide bright zone near head — fades softly to black
+          uint8_t pixBri = (uint8_t)((uint32_t(inv) * inv * SEGMENT.intensity) >> 16);
+          SEGMENT.setPixelColor(i, color_fade(headColor, pixBri));
+        } else {
+          SEGMENT.setPixelColor(i, color_fade(SEGCOLOR(1), 6));
+        }
+      } else {
+        SEGMENT.setPixelColor(i, color_fade(SEGCOLOR(1), 6));
+      }
+    }
+  }
+
+  // ── Update persistent state ────────────────────────────────────────────────
+  SEGENV.aux0 = headPos;
+  SEGENV.aux1 = speed;
+}
+
+// ─── CAN RPM Ignition ─────────────────────────────────────────────────────────
+// Per-pixel spark hold+fade driven by RPM.  Each pixel fires when its hash
+// crosses the RPM-derived threshold; it then holds at peak brightness and fades
+// out over time.  At the moment of spark the color is hot (high palette position
+// / col[2] blend); it cools toward the normal RPM color as it fades.
+// Controls: speed=Anim(flicker rate), intensity=Intensity, c1=Pal Map, c2=Fade Time
+static void mode_can_rpm_ignition(void) {
+  if (SEGLEN <= 1) { SEGMENT.fill(0); return; }
+
+  // Allocate one fade-level byte per pixel (0=off, 255=just sparked)
+  if (!SEGENV.allocateData(SEGLEN)) { SEGMENT.fill(0); return; }
+  uint8_t* fadeLevel = SEGENV.data;
+
+  uint16_t rpm      = (g_canRpm >= 0) ? (uint16_t)g_canRpm : 0;
+  uint8_t  rpmFrac8 = (uint8_t)constrain((uint32_t(rpm) * 255U) / 8000U, 0, 255);
+  bool     nearRedline = (rpmFrac8 > 217);
+  // Pal Map modes: 0=RPM Value, 1=RPM+HotShift (default), 2=Spatial+RPM
+  uint8_t palMode223 = SEGMENT.custom1 / 85U;
+
+  // Base hue: deep red (250) at idle → yellow-white (30) at redline
+  uint8_t baseHue = (uint8_t)map(rpmFrac8, 0, 255, 250, 30);
+
+  // Flicker rate: hash advances every flickDiv frames
+  SEGENV.step++;
+  uint8_t  flickDiv = (uint8_t)max(1u, 8u - (unsigned)(SEGMENT.speed >> 5));
+  uint32_t tick     = nearRedline ? SEGENV.call : (SEGENV.call / flickDiv);
+
+  // Spark threshold — same for all pixels this frame
+  uint8_t thresh8 = nearRedline
+    ? (uint8_t)((SEGENV.step & 3U) ? 200U : 80U)
+    : (uint8_t)(255U - (uint32_t(rpmFrac8) * rpmFrac8) / 255U);
+
+  // Fade step from c2: c2=0 → fast fade (step=20), c2=255 → slow fade (step=1)
+  uint8_t fadeStep = (uint8_t)map(SEGMENT.custom2, 0, 255, 20, 1);
+
+  uint8_t bgBright = (uint8_t)((uint32_t(rpmFrac8) * 24U) >> 8);
+
+  for (unsigned i = 0; i < SEGLEN; i++) {
+    // Per-pixel xorshift hash — stationary
+    uint32_t h = ((uint32_t)i * 2654435761U) ^ (tick * 2246822519U);
+    h ^= h >> 16;
+    h *= 0x45d9f3bU;
+    h ^= h >> 16;
+    uint8_t noise = (uint8_t)(h >> 24);
+
+    uint8_t fl = fadeLevel[i];
+
+    if (fl == 0 && noise >= thresh8) {
+      // New spark — light at full brightness
+      fl = 255;
+    } else if (fl > 0) {
+      // Fade existing spark toward zero
+      fl = (fl > fadeStep) ? (fl - fadeStep) : 0;
+    }
+    fadeLevel[i] = fl;
+
+    if (fl == 0) {
+      // Background ember: hue-only normalized from SEGCOLOR(1)
+      uint32_t bg1    = SEGCOLOR(1);
+      uint8_t  b1R    = (uint8_t)(bg1 >> 16);
+      uint8_t  b1G    = (uint8_t)(bg1 >>  8);
+      uint8_t  b1B    = (uint8_t)(bg1);
+      uint8_t  bgMax  = max(b1R, max(b1G, max(b1B, (uint8_t)1u)));
+      SEGMENT.setPixelColor(i, RGBW32(
+        (uint8_t)(uint32_t(b1R) * bgBright / bgMax),
+        (uint8_t)(uint32_t(b1G) * bgBright / bgMax),
+        (uint8_t)(uint32_t(b1B) * bgBright / bgMax),
+        0
+      ));
+    } else {
+      // Normal palette position for this RPM level
+      uint8_t normalPalIdx;
+      if      (palMode223 == 0) normalPalIdx = rpmFrac8;
+      else if (palMode223 == 1) normalPalIdx = baseHue;
+      else                      normalPalIdx = (uint8_t)((uint32_t(i) * 255U) / SEGLEN) + (rpmFrac8 >> 1);
+
+      // Hot palette shift proportional to fade level
+      uint8_t hotShift  = (uint8_t)((uint32_t(fl) * 89U) >> 8);
+      uint8_t palIdx223 = (uint8_t)min(255u, (unsigned)normalPalIdx + hotShift);
+
+      // Blend toward SEGCOLOR(2) (Hot Tip) when freshly sparked (fl > 180)
+      uint32_t col = color_blend(
+        SEGMENT.color_from_palette(palIdx223, true, PALETTE_SOLID_WRAP, 0),
+        SEGCOLOR(2),
+        (fl > 180) ? (unsigned)(fl - 180) * 4u : 0u
+      );
+
+      // Hue-only: normalize blended color to its max channel
+      uint8_t cR   = (uint8_t)(col >> 16);
+      uint8_t cG   = (uint8_t)(col >>  8);
+      uint8_t cB   = (uint8_t)(col);
+      uint8_t cMax = max(cR, max(cG, max(cB, (uint8_t)1u)));
+
+      // Spark brightness: 140 (55%) at idle → 217 (85%) at redline, linear with RPM
+      // Scaled only by fade level — intensity slider is not used here
+      uint8_t sparkBright = (uint8_t)(140u + (uint32_t(rpmFrac8) * 77u >> 8));
+      uint8_t finalBri    = (uint8_t)(uint32_t(fl) * sparkBright >> 8);
+
+      SEGMENT.setPixelColor(i, RGBW32(
+        (uint8_t)(uint32_t(cR) * finalBri / cMax),
+        (uint8_t)(uint32_t(cG) * finalBri / cMax),
+        (uint8_t)(uint32_t(cB) * finalBri / cMax),
+        0
+      ));
+    }
+  }
+}
+
+// ─── CAN Speed Warp ───────────────────────────────────────────────────────────
+// Running-light sine waves where speed compresses the wave period (more waves at
+// higher speed) and shifts the hue across the strip.  At zero speed the strip is
+// nearly dark with a slow pulse; at top speed it ripples densely.
+static void mode_can_speed_warp(void) {
+  if (SEGLEN <= 1) { SEGMENT.fill(0); return; }
+
+  uint16_t speed   = (g_canSpeed >= 0) ? (uint16_t)g_canSpeed : 0;
+  uint8_t  spd8    = (uint8_t)map(constrain((int)speed, 0, 200), 0, 200, 0, 255);
+  uint8_t  baseHue = (uint8_t)map(spd8, 0, 255, 160, 0);  // blue→red with speed
+  // Pal Map modes: 0=Value (speed-only uniform color), 1=Spatial+Speed (default), 2=Animated-scroll
+  uint8_t palMode224 = SEGMENT.custom1 / 85U;
+
+  // Animation advance: baseline 1 + speed-driven rate + slider
+  SEGENV.step += (1U + (uint32_t(spd8) >> 3) + (SEGMENT.speed >> 3));
+
+  // Wave count: 1 wave at 0 km/h, up to ~8 waves at top speed
+  // Encoded as wave period in LED units: period = SEGLEN / waveCount
+  unsigned waveCount  = 1U + (uint32_t(spd8) * 7U) / 255U;  // 1..8
+  unsigned wavePeriod = max(4u, SEGLEN / waveCount);
+
+  for (unsigned i = 0; i < SEGLEN; i++) {
+    // Phase: position within the wave + time scroll
+    uint16_t phase = ((uint32_t(i) * 256U) / wavePeriod + SEGENV.step) & 0xFF;
+    uint8_t  sineV = sin8_t(phase);  // 0-255 sine
+
+    // Minimum glow at rest: brightness starts from spd8/4 floor
+    uint8_t floor8  = spd8 >> 2;
+    uint8_t bright  = (uint8_t)((uint16_t(sineV) * SEGMENT.intensity >> 8));
+    if (bright < floor8) bright = floor8;
+
+    // Hue shifts slightly across strip for depth (±12 steps over full length)
+    uint8_t hueShift = (uint8_t)(uint32_t(i) * 24U / SEGLEN);
+    uint8_t pixHue   = baseHue + hueShift;
+    uint8_t palIdx224;
+    if      (palMode224 == 0) palIdx224 = baseHue;               // speed-only, no spatial shift
+    else if (palMode224 == 1) palIdx224 = pixHue;                // spatial + speed (default)
+    else                      palIdx224 = uint8_t(pixHue + uint8_t(SEGENV.step >> 3)); // animated scroll
+    SEGMENT.setPixelColor(i, color_fade(SEGMENT.color_from_palette(palIdx224, true, PALETTE_SOLID_WRAP, 0), bright));
+  }
+}
+
+#else
+
+// Fallback stubs when CAN usermod not available
+static void mode_can_rpm_pulse(void)           { mode_static(); }
+static void mode_can_speed_color(void)         { mode_static(); }
+static void mode_can_throttle(void)            { mode_static(); }
+static void mode_can_speed_noise(void)         { mode_static(); }
+static void mode_can_throttle_meteor(void)     { mode_static(); }
+static void mode_can_rpm_ignition(void)        { mode_static(); }
+static void mode_can_speed_warp(void)          { mode_static(); }
+
+#endif // ESP32 && USERMOD_CAN_TWAI
+
+// Effect metadata strings for CAN effects
+static const char _data_FX_MODE_CAN_RPM_PULSE[]       PROGMEM = "CAN RPM Pulse@,Intensity,Pal Map,Scale;;!;1;pal=0";
+static const char _data_FX_MODE_CAN_SPEED_COLOR[]     PROGMEM = "CAN Speed Color@,Intensity,Pal Map;;!;1;pal=0";
+static const char _data_FX_MODE_CAN_THROTTLE[]        PROGMEM = "CAN Throttle@,Intensity,Pal Map;;!;1;pal=0";
+static const char _data_FX_MODE_CAN_SPEED_NOISE[]     PROGMEM = "CAN Speed Noise@Anim,Brightness,Pal Map;;!;1;pal=0";
+static const char _data_FX_MODE_CAN_THROTTLE_METEOR[] PROGMEM = "CAN Throttle Meteor@Vel,Trail,Smooth;Head,,Tail;!;1";
+static const char _data_FX_MODE_CAN_RPM_IGNITION[]    PROGMEM = "CAN RPM Ignition@Anim,,Pal Map,Fade Time;Ember,BG,Hot Tip;!;1;pal=0,c2=128";
+static const char _data_FX_MODE_CAN_SPEED_WARP[]      PROGMEM = "CAN Speed Warp@Anim,Intensity,Pal Map;;!;1;pal=0";
+
 //////////////////////////////////////////////////////////////////////////////////////////
 // mode data
 static const char _data_RESERVED[] PROGMEM = "RSVD";
@@ -10994,5 +11478,15 @@ addEffect(FX_MODE_PS1DSONICSTREAM, &mode_particle1DsonicStream, _data_FX_MODE_PS
 addEffect(FX_MODE_PS1DSONICBOOM, &mode_particle1DsonicBoom, _data_FX_MODE_PS_SONICBOOM);
 addEffect(FX_MODE_PS1DSPRINGY, &mode_particleSpringy, _data_FX_MODE_PS_SPRINGY);
 #endif // WLED_DISABLE_PARTICLESYSTEM1D
+
+#if defined(ESP32) && !defined(CONFIG_IDF_TARGET_ESP32C2) && defined(USERMOD_CAN_TWAI)
+  addEffect(FX_MODE_CAN_RPM_PULSE,        &mode_can_rpm_pulse,        _data_FX_MODE_CAN_RPM_PULSE);
+  addEffect(FX_MODE_CAN_SPEED_COLOR,      &mode_can_speed_color,      _data_FX_MODE_CAN_SPEED_COLOR);
+  addEffect(FX_MODE_CAN_THROTTLE,         &mode_can_throttle,         _data_FX_MODE_CAN_THROTTLE);
+  addEffect(FX_MODE_CAN_SPEED_NOISE,      &mode_can_speed_noise,      _data_FX_MODE_CAN_SPEED_NOISE);
+  addEffect(FX_MODE_CAN_THROTTLE_METEOR,  &mode_can_throttle_meteor,  _data_FX_MODE_CAN_THROTTLE_METEOR);
+  addEffect(FX_MODE_CAN_RPM_IGNITION,     &mode_can_rpm_ignition,     _data_FX_MODE_CAN_RPM_IGNITION);
+  addEffect(FX_MODE_CAN_SPEED_WARP,       &mode_can_speed_warp,       _data_FX_MODE_CAN_SPEED_WARP);
+#endif // ESP32 && USERMOD_CAN_TWAI
 
 }

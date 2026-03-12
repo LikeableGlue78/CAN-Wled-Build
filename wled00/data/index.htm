@@ -290,6 +290,27 @@
 			<option value="14" data-type="2D">Circular Out</option>
 			<option value="15" data-type="2D">Circular In</option>
 		</select></div>
+		<div id="lmPanel">
+			<div class="lm-hdr" onclick="lmToggle()">
+				<label class="check lm-chk" onclick="event.stopPropagation()">
+					<input type="checkbox" id="lmOn" onchange="lmEnable(this.checked)">
+					<span class="checkmark"></span>
+					Strip Layout
+				</label>
+				<span class="h lm-res-lbl">Render res:&nbsp;<input id="lmRes" type="number" min="60" max="2000" step="10" value="300" onclick="event.stopPropagation()" onchange="lmSave()">&nbsp;px</span>
+				<i class="icons lm-arr" id="lmArr">&#xe395;</i>
+			</div>
+			<div id="lmBody" class="hide">
+				<canvas id="lmCvs" tabindex="0"></canvas>
+				<div id="lmSel"></div>
+				<div class="lm-btns">
+					<button class="btn btn-xs" onclick="lmAutoFit()">Auto-fit</button>
+					<button class="btn btn-xs" onclick="lmReset()">Reset</button>
+					<button class="btn btn-xs" id="lmMirBtn" onclick="lmToggleMirror()" disabled>Mirror</button>
+					<button class="btn btn-xs" onclick="lmApply()">Send to mock</button>
+				</div>
+			</div>
+		</div>
 		<p id="ledmap" class="hide"></p>
 	</div>
 
@@ -371,4 +392,4 @@
 <script src="index.js"></script>
 </body>
 </html>
- 
+  

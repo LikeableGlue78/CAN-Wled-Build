@@ -44,28 +44,12 @@
     var tmout = null;
     var c;
     var ctx;
-    function _resizeCanvas() {
-      const ratio = window.devicePixelRatio || 1;
-      const cssW = d.documentElement.clientWidth;
-      const cssH = d.documentElement.clientHeight;
-      c.style.width  = cssW + 'px';
-      c.style.height = cssH + 'px';
-      c.width  = Math.max(1, Math.floor(cssW * ratio));
-      c.height = Math.max(1, Math.floor(cssH * ratio));
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    }
-
     function draw(start, skip, leds, fill) {
-      // Ensure canvas matches viewport and clear previous frame
-      _resizeCanvas();
-      ctx.clearRect(0, 0, c.width, c.height);
-
-      const totalPixels = Math.max(1, leds.length - start);
-      const w = (c.clientWidth * skip) / totalPixels;
+      c.width = d.documentElement.clientWidth;
+      let w = (c.width * skip) / (leds.length - start);
       for (let i = start; i < leds.length; i += skip) {
-        ctx.fillStyle = fill(leds, i);
-        const x = Math.round((i - start) * w / skip);
-        ctx.fillRect(x, 0, Math.max(1, Math.ceil(w)), c.clientHeight);
+        ctx.fillStyle = fill(leds,i);
+        ctx.fillRect(Math.round((i - start) * w / skip), 0, Math.ceil(w), c.height);
       }
     }
     function update(retry=0) { // via HTTP (/json/live)
@@ -119,5 +103,7 @@
   <div id="viewerFrame">
     <canvas id="canv"></canvas>
   </div>
+
+<script src="/mock/hud.js"></script>
 </body>
 </html>

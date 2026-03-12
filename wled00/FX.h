@@ -379,7 +379,15 @@ extern byte realtimeMode;           // used in getMappedPixelIndex()
 #define FX_MODE_PS1DSONICBOOM          215
 #define FX_MODE_PS1DSPRINGY            216
 #define FX_MODE_PARTICLEGALAXY         217
-#define MODE_COUNT                     218
+// CAN Bus driven effects
+#define FX_MODE_CAN_RPM_PULSE          218
+#define FX_MODE_CAN_SPEED_COLOR        219
+#define FX_MODE_CAN_THROTTLE           220
+#define FX_MODE_CAN_SPEED_NOISE        221
+#define FX_MODE_CAN_THROTTLE_METEOR    222
+#define FX_MODE_CAN_RPM_IGNITION       223
+#define FX_MODE_CAN_SPEED_WARP         224
+#define MODE_COUNT                     225
 
 
 #define BLEND_STYLE_FADE            0x00  // universal
